@@ -44,7 +44,7 @@ export function EmptyState({ icon, children, action }: { icon?: ReactNode; child
 }
 
 /* ---------- Bottom sheet ---------- */
-export function Sheet({ open, onClose, labelledBy, children }: { open: boolean; onClose: () => void; labelledBy: string; children: ReactNode }) {
+export function Sheet({ open, onClose, labelledBy, className, children }: { open: boolean; onClose: () => void; labelledBy: string; className?: string; children: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -52,7 +52,7 @@ export function Sheet({ open, onClose, labelledBy, children }: { open: boolean; 
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
-    panel.current?.focus();
+    if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener('keydown', onKey);
@@ -61,7 +61,7 @@ export function Sheet({ open, onClose, labelledBy, children }: { open: boolean; 
   if (!open) return null;
   return (
     <div className="sheet" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="panel" role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1} ref={panel}>
+      <div className={`panel${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1} ref={panel}>
         <div className="grab" />
         {children}
       </div>

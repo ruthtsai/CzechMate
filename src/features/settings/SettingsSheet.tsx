@@ -1,11 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { db, getSetting, setSetting } from '../../db';
-import { MODE_SHORT, MODES, PAYMENT_KIND_LABEL, type Theme } from '../../domain/constants';
+import { getSetting, setSetting } from '../../db';
+import { MODE_SHORT, MODES, type Theme } from '../../domain/constants';
 import { shareOrDownload } from '../../io/share';
 import { applyTheme } from '../../theme';
 import { IconShare } from '../../components/Icons';
 import { Seg, Sheet, useToast } from '../../components/ui';
+import { useLedger } from '../ledger/LedgerData';
+import { ManageCategories, ManagePayments, ManageTrips } from './Manage';
 
 const THEME_OPTIONS = [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']] as const;
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/resources_template.csv`;
@@ -18,9 +20,13 @@ function formatBytes(n: number) {
 export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToast();
   const theme = useLiveQuery(() => getSetting<Theme>('theme', 'system'), [], 'system');
-  const payments = useLiveQuery(() => db.paymentMethods.orderBy('order').toArray(), [], []);
-  const categories = useLiveQuery(() => db.categories.toArray(), [], []);
+  const { payments, categories, trips } = useLedger();
+  const [screen, setScreen] = useState<'main' | 'payments' | 'categories' | 'trips'>('main');
   const [storage, setStorage] = useState<{ usage?: number; persisted?: boolean }>({});
+
+  useEffect(() => {
+    if (!open) setScreen('main');
+  }, [open]);
 
   useEffect(() => {
     if (!open || !navigator.storage) return;
@@ -48,6 +54,17 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
 
   const soon = () => toast('這個功能還在開發中。', { ok: false });
 
+  if (screen !== 'main') {
+    const back = () => setScreen('main');
+    return (
+      <Sheet open={open} onClose={onClose} labelledBy="settings-title">
+        {screen === 'payments' && <ManagePayments onBack={back} />}
+        {screen === 'categories' && <ManageCategories onBack={back} />}
+        {screen === 'trips' && <ManageTrips onBack={back} />}
+      </Sheet>
+    );
+  }
+
   return (
     <Sheet open={open} onClose={onClose} labelledBy="settings-title">
       <div className="sheet-h">
@@ -61,36 +78,30 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
       </div>
 
       <div className="setgroup">
-        <h3>付款方式</h3>
+        <h3>記帳</h3>
         <div className="list">
-          {payments.map(p => (
-            <div className="row" key={p.id}>
-              <span className="main">
-                <span className="t">{p.name}</span>
-              </span>
-              <span className="chip">{PAYMENT_KIND_LABEL[p.kind]}</span>
-            </div>
-          ))}
+          <button type="button" className="row" onClick={() => setScreen('payments')}>
+            <span className="main">
+              <span className="t">付款方式</span>
+              <span className="m">{payments.filter(p => p.active).map(p => p.name).join('、')}</span>
+            </span>
+            <span className="end">›</span>
+          </button>
+          <button type="button" className="row" onClick={() => setScreen('categories')}>
+            <span className="main">
+              <span className="t">類別</span>
+              <span className="m">{MODES.map(m => `${MODE_SHORT[m]} ${categories.filter(c => c.mode === m && c.active).length}`).join(' · ')}</span>
+            </span>
+            <span className="end">›</span>
+          </button>
+          <button type="button" className="row" onClick={() => setScreen('trips')}>
+            <span className="main">
+              <span className="t">旅程</span>
+              <span className="m">{trips.length ? `${trips.length} 個旅程` : '還沒有旅程'}</span>
+            </span>
+            <span className="end">›</span>
+          </button>
         </div>
-      </div>
-
-      <div className="setgroup">
-        <h3>類別</h3>
-        <div className="list">
-          {MODES.map(m => {
-            const names = categories.filter(c => c.mode === m).sort((a, b) => a.order - b.order);
-            return (
-              <div className="row" key={m}>
-                <span className="main">
-                  <span className="t">{MODE_SHORT[m]}</span>
-                  <span className="m">{names.map(c => c.name).join('、')}</span>
-                </span>
-                <span className="end num">{names.length}</span>
-              </div>
-            );
-          })}
-        </div>
-        <p className="muted tiny" style={{ margin: 0 }}>新增、改名與排序會在記帳功能上線時開放。</p>
       </div>
 
       <div className="setgroup">

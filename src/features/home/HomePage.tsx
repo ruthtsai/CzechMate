@@ -1,17 +1,41 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../db';
+import { monthKey, monthLabel, today } from '../../domain/dates';
+import { formatAmount } from '../../domain/format';
+import { summarize } from '../../domain/money';
+import type { Currency } from '../../domain/constants';
 import { IconAlert, IconPin, IconPlus } from '../../components/Icons';
-import { EmptyState, useToast } from '../../components/ui';
+import { EmptyState } from '../../components/ui';
 import { PageHeader } from '../../components/PageHeader';
+import { useEditors } from '../ledger/Editors';
+import { useLedger } from '../ledger/LedgerData';
+import { presetLedgerFilter } from '../ledger/LedgerPage';
 
 // iOS keeps home-screen web apps and Safari tabs in separate storage (requirements spec 3).
 const inSafariTab = navigator.standalone === false;
 
 export function HomePage() {
-  const toast = useToast();
+  const L = useLedger();
+  const { openExpense } = useEditors();
+  const navigate = useNavigate();
   const pinned = useLiveQuery(() => db.resources.filter(r => r.pinned).count(), [], 0);
-  const now = new Date();
-  const month = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月`;
+
+  const month = monthKey(today());
+  const thisMonth = L.expenses.filter(e => monthKey(e.date) === month);
+  const sum = summarize(thisMonth, L.money.expenses);
+  let pending = 0;
+  for (const c of L.money.expenses.values()) if (c.source === 'pending') pending++;
+  const negative = Object.entries(L.money.cash).filter(([, s]) => s && s.stock < -0.004).map(([c]) => c);
+
+  const showPending = () => {
+    presetLedgerFilter({ seg: 'expenses', missing: 'pending' });
+    navigate('/ledger');
+  };
+  const showExchanges = () => {
+    presetLedgerFilter({ seg: 'exchanges', missing: null });
+    navigate('/ledger');
+  };
 
   return (
     <>
@@ -25,6 +49,19 @@ export function HomePage() {
             </span>
           </div>
         )}
+        {pending > 0 && (
+          <button type="button" className="banner" onClick={showPending}>
+            <IconAlert />
+            <span>有 <b>{pending} 筆</b>刷卡待補帳單金額</span>
+            <span className="muted small" style={{ marginLeft: 'auto' }}>去補 ›</span>
+          </button>
+        )}
+        {negative.length > 0 && (
+          <button type="button" className="banner" onClick={showExchanges}>
+            <IconAlert />
+            <span><b>{negative.join('、')}</b> 現金庫存不足，請補記換匯。</span>
+          </button>
+        )}
 
         <section className="section">
           <div className="sec-h"><h2>常用連結</h2></div>
@@ -34,14 +71,23 @@ export function HomePage() {
         </section>
 
         <section className="section">
-          <div className="sec-h"><h2>{month}花費</h2></div>
+          <div className="sec-h"><h2>{monthLabel(month)}花費</h2></div>
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span className="num" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
-              <small className="muted" style={{ fontSize: 15, fontWeight: 500, marginRight: 4 }}>NT$</small>0
+              <small className="muted" style={{ fontSize: 15, fontWeight: 500, marginRight: 4 }}>NT$</small>
+              {Math.round(sum.twd).toLocaleString('en-US')}
             </span>
-            <span className="muted small">這段期間還沒有支出紀錄。</span>
+            {thisMonth.length === 0 ? (
+              <span className="muted small">這段期間還沒有支出紀錄。</span>
+            ) : (
+              <span className="muted small num">
+                {thisMonth.length} 筆支出
+                {sum.missingCount > 0 &&
+                  `，另有 ${sum.missingCount} 筆未換算（${Object.entries(sum.missing).map(([c, a]) => `${formatAmount(a!, c as Currency)} ${c}`).join('、')}）`}
+              </span>
+            )}
           </div>
-          <button type="button" className="btn btn-primary btn-block" onClick={() => toast('記帳功能還在開發中。', { ok: false })}>
+          <button type="button" className="btn btn-primary btn-block" onClick={() => openExpense()}>
             <IconPlus />快速記一筆
           </button>
         </section>

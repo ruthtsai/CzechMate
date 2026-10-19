@@ -12,6 +12,8 @@ import { LibraryPage } from './features/library/LibraryPage';
 import { LedgerPage } from './features/ledger/LedgerPage';
 import { StatsPage } from './features/stats/StatsPage';
 import { SettingsSheet } from './features/settings/SettingsSheet';
+import { EditorsProvider } from './features/ledger/Editors';
+import { LedgerDataProvider } from './features/ledger/LedgerData';
 
 const TABS = [
   { to: '/', label: '首頁', Icon: IconHome },
@@ -55,22 +57,26 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <SettingsCtx.Provider value={openSettings}>
-        <HashRouter>
-          <div className="app">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/library" element={<LibraryPage />} />
-              <Route path="/ledger" element={<LedgerPage />} />
-              <Route path="/stats" element={<StatsPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <TabBar />
-          </div>
-        </HashRouter>
-        <SettingsSheet open={settingsOpen} onClose={closeSettings} />
-        <UpdatePrompt />
-      </SettingsCtx.Provider>
+      <LedgerDataProvider>
+        <EditorsProvider>
+          <SettingsCtx.Provider value={openSettings}>
+            <HashRouter>
+              <div className="app">
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/library" element={<LibraryPage />} />
+                  <Route path="/ledger" element={<LedgerPage />} />
+                  <Route path="/stats" element={<StatsPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+                <TabBar />
+              </div>
+            </HashRouter>
+            <SettingsSheet open={settingsOpen} onClose={closeSettings} />
+            <UpdatePrompt />
+          </SettingsCtx.Provider>
+        </EditorsProvider>
+      </LedgerDataProvider>
     </ToastProvider>
   );
 }

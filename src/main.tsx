@@ -4,6 +4,7 @@ import App from './App';
 import { applyCachedTheme } from './theme';
 import './styles/tokens.css';
 import './styles/base.css';
+import './styles/forms.css';
 
 applyCachedTheme();
 
