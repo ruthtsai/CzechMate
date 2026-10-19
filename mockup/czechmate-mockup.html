@@ -236,7 +236,11 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .form-travel .btn-primary, :root:not([data-theme="light"]) .form-travel .opt[aria-pressed="true"] { color: #17211B; } }
 .hint { font-size: 13px; color: var(--text-secondary); background: var(--surface-subtle); border-radius: 10px; padding: 8px 10px; }
 .hint.warn { background: var(--warning-surface); color: var(--warning); }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.two > .field { min-width: 0; }
+.field input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; }
+.field input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+.newtrip { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--accent-travel); border-radius: 12px; padding: 12px; }
 .actions { display: flex; gap: 10px; }
 .actions .btn { flex: 1; }
 .confirm { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--error); border-radius: 12px; padding: 12px; }
@@ -429,7 +433,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 
   /* ---------- state ---------- */
   const S = {
-    tab: 'home', ledgerSeg: 'exp', ledgerPeriod: 'month', ledgerMode: 'all', pendingOnly: false,
+    tab: 'home', ledgerSeg: 'exp', ledgerPeriod: 'month', ledgerMode: 'all', ledgerTrip: 'all', pendingOnly: false,
     statSeg: 'month', statMode: 'all', statMonth: '2027-03', openTrip: 'vie', openPay: null,
     q: '', stage: '全部', rtype: '全部',
     lastMode: 'daily', lastCur: 'CZK', lastPay: 'cash'
@@ -605,9 +609,11 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
     h += '<div class="scroller" role="group" aria-label="期間">' + [['month', '本月'], ['all', '全部']].map(([k, n]) => '<button class="fchip" data-period="' + k + '" aria-pressed="' + (S.ledgerPeriod === k) + '">' + n + '</button>').join('') +
       '<span style="width:1px;background:var(--border);flex:none"></span>' +
       [['all', '全部模式']].concat(MODES.map(m => [m.id, m.name])).map(([k, n]) => '<button class="fchip" data-lmode="' + k + '" aria-pressed="' + (S.ledgerMode === k) + '">' + n + '</button>').join('') + '</div>';
+    if (S.ledgerMode === 'travel') h += '<div class="scroller" role="group" aria-label="旅程" style="margin-top:-12px">' + [['all', '所有旅程']].concat(trips.slice().reverse().map(x => [x.id, x.name])).map(([k, n]) => '<button class="fchip" data-ltrip="' + k + '" aria-pressed="' + (S.ledgerTrip === k) + '" style="' + (S.ledgerTrip === k ? 'background:var(--accent-travel);border-color:var(--accent-travel);color:var(--accent-travel-surface)' : '') + '">' + esc(n) + '</button>').join('') + '</div>';
     const p = pending();
     if (p.length) h += '<button class="banner" data-act="toggle-pending">' + I.alert + '<span>' + (S.pendingOnly ? '只顯示待補的 <b>' + p.length + ' 筆</b>' : '有 <b>' + p.length + ' 筆</b>刷卡待補帳單金額') + '</span><span class="go">' + (S.pendingOnly ? '顯示全部' : '只看待補') + ' ›</span></button>';
-    let list = expenses.filter(e => (S.ledgerPeriod === 'all' || ym(e.date) === ym(TODAY)) && (S.ledgerMode === 'all' || e.mode === S.ledgerMode));
+    const byTrip = S.ledgerMode === 'travel' && S.ledgerTrip !== 'all';
+    let list = expenses.filter(e => (byTrip || S.ledgerPeriod === 'all' || ym(e.date) === ym(TODAY)) && (S.ledgerMode === 'all' || e.mode === S.ledgerMode) && (!byTrip || e.trip === S.ledgerTrip));
     if (S.pendingOnly) list = expenses.filter(e => e.src === '待補' && payOf(e.pay).type !== 'cash');
     list.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
     if (!list.length) return h + '<div class="empty card"><span>這段期間還沒有支出紀錄。</span><button class="btn btn-primary" data-act="add-exp">' + I.plus + '新增第一筆支出</button></div>';
@@ -726,12 +732,18 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
     const err = k => F.errors[k] ? '<span class="err">' + I.alert.replace('<svg', '<svg width="14" height="14"') + F.errors[k] + '</span>' : '';
     let h = '<div class="sheet-h"><button type="button" data-act="close">取消</button><h2 style="text-align:center">' + (F.id ? '編輯支出' : '新增支出') + '</h2><button type="button" data-act="save-exp" style="font-weight:600;color:' + (t ? 'var(--accent-travel)' : 'var(--primary)') + '">儲存</button></div>';
     h += '<div class="seg' + (t ? ' travel' : '') + '" role="group" aria-label="記帳模式">' + MODES.map(m => '<button type="button" data-f="mode" data-v="' + m.id + '" aria-pressed="' + (F.mode === m.id) + '">' + m.name + '</button>').join('') + '</div>';
+    if (t) {
+      h += '<div class="field"><span class="lab">哪一趟旅程</span><div class="opts">' + trips.slice().reverse().map(x => opt('trip', x.id, x.name)).join('') +
+        (F.newTrip ? '' : '<button type="button" class="opt" data-act="new-trip">＋ 新旅程</button>') + '</div>' + err('trip') + '</div>';
+      if (F.newTrip) h += '<div class="newtrip"><div class="field"><label for="nt-name">旅程名稱</label><input id="nt-name" type="text" placeholder="例如：2027 克拉科夫週末"></div>' +
+        '<div class="two"><div class="field"><label for="nt-start">開始</label><input id="nt-start" type="date" value="' + esc(F.date || TODAY) + '"></div><div class="field"><label for="nt-end">結束</label><input id="nt-end" type="date"></div></div>' +
+        '<div class="actions"><button type="button" class="btn btn-secondary" data-act="new-trip-cancel">取消</button><button type="button" class="btn btn-primary" data-act="new-trip-save">建立並選取</button></div></div>';
+    }
     h += '<div class="field' + (F.errors.amt ? ' invalid' : '') + '"><label for="f-amt">金額</label><input id="f-amt" class="amount-in" inputmode="decimal" placeholder="0" value="' + esc(F.amtStr) + '" autocomplete="off">' + err('amt') +
       '<div class="opts" role="group" aria-label="幣別">' + CURS.map(c => opt('cur', c, c)).join('') + '</div></div>';
     h += '<div class="field"><span class="lab">付款方式</span><div class="opts">' + PAYS.map(x => opt('pay', x.id, x.name)).join('') + '</div></div>';
     h += preview;
     h += '<div class="field"><span class="lab">類別</span><div class="opts">' + CATS[F.mode].map(c => opt('cat', c, c)).join('') + '</div></div>';
-    if (t) h += '<div class="field"><span class="lab">旅程</span><div class="opts">' + trips.slice().reverse().map(x => opt('trip', x.id, x.name)).join('') + '<button type="button" class="opt" data-act="new-trip">＋ 新旅程</button></div>' + err('trip') + '</div>';
     h += '<div class="field"><label for="f-name">項目名稱</label><input id="f-name" type="text" placeholder="例如：午餐、火車票" value="' + esc(F.name) + '"></div>';
     h += '<div class="two"><div class="field"><label for="f-date">日期</label><input id="f-date" type="date" value="' + esc(F.date) + '"></div><div class="field"><label for="f-place">地點</label><input id="f-place" type="text" placeholder="城市或店家" value="' + esc(F.place) + '"></div></div>';
     h += '<div class="field"><label for="f-note">備註</label><textarea id="f-note" placeholder="補充資訊">' + esc(F.note) + '</textarea></div>';
@@ -863,7 +875,8 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
     if (d.rtype) { S.rtype = d.rtype; return render(); }
     if (d.lseg) { S.ledgerSeg = d.lseg; return render(); }
     if (d.period) { S.ledgerPeriod = d.period; S.pendingOnly = false; return render(); }
-    if (d.lmode) { S.ledgerMode = d.lmode; S.pendingOnly = false; return render(); }
+    if (d.lmode) { S.ledgerMode = d.lmode; S.ledgerTrip = 'all'; S.pendingOnly = false; return render(); }
+    if (d.ltrip) { S.ledgerTrip = d.ltrip; S.pendingOnly = false; return render(); }
     if (d.sseg) { S.statSeg = d.sseg; return render(); }
     if (d.smode) { S.statMode = d.smode; return render(); }
     if (d.month !== undefined && d.month) { S.statMonth = d.month; return render(); }
@@ -901,7 +914,17 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
       case 'del-ask': readExpInputs(); F.confirmDel = true; return drawExpForm();
       case 'del-cancel': F.confirmDel = false; return drawExpForm();
       case 'del-exp': { const i = expenses.findIndex(x => x.id === F.id); expenses.splice(i, 1); closeSheet(); render(); return toast('已刪除。'); }
-      case 'new-trip': return toast('樣稿：這裡會輸入旅程名稱與日期');
+      case 'new-trip': readExpInputs(); F.newTrip = true; drawExpForm(); return $('#nt-name').focus();
+      case 'new-trip-cancel': readExpInputs(); F.newTrip = false; return drawExpForm();
+      case 'new-trip-save': {
+        const name = $('#nt-name').value.trim(), start = $('#nt-start').value, end = $('#nt-end').value || start;
+        if (!name) return toast('請輸入旅程名稱。', false);
+        if (!start) return toast('請選擇開始日期。', false);
+        const id = 't' + (seq++);
+        trips.push({ id, name, start, end: end < start ? start : end });
+        readExpInputs(); F.trip = id; F.newTrip = false; drawExpForm();
+        return toast('已建立旅程「' + name + '」。');
+      }
       case 'add-fx': return openFxForm();
       case 'save-fx': {
         readFx();
