@@ -1,6 +1,9 @@
 #!/bin/sh
-# Wrap the artifact-style mockup (no <head>/<body>) into a standalone page for GitHub Pages.
-cd "$(dirname "$0")"
+# Wrap the artifact-style mockup (no <head>/<body>) into a standalone page served at /CzechMate/mockup/.
+cd "$(dirname "$0")/.."
+src=mockup-src/czechmate-mockup.html
+out=public/mockup/index.html
+mkdir -p public/mockup
 {
 cat <<'HEAD'
 <!doctype html>
@@ -12,10 +15,10 @@ cat <<'HEAD'
 <meta name="apple-mobile-web-app-title" content="CzechMate">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 HEAD
-sed -n '1,/^<\/style>$/p' czechmate-mockup.html
+sed -n '1,/^<\/style>$/p' "$src"
 echo '</head>'
 echo '<body>'
-sed '1,/^<\/style>$/d' czechmate-mockup.html
+sed '1,/^<\/style>$/d' "$src"
 echo '</body>'
 echo '</html>'
-} > index.html
+} > "$out"

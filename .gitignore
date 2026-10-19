@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dev-dist/
+*.local
+.DS_Store
+# Never commit personal data exports
+*.xlsx
+CzechMate_備份_*.json

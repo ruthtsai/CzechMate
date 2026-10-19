@@ -1,0 +1,66 @@
+/* Design tokens from CzechMate_UI_Spec.md section 2.
+   Light values on :root; dark values apply when the OS is dark (unless the user picked light)
+   or when the user picked dark. Components must only use these variables. */
+:root {
+  --background: #F5F3EB;
+  --surface: #FFFFFF;
+  --surface-subtle: #ECEAE1;
+  --text-primary: #243229;
+  --text-secondary: #59665B;
+  --border: #DAD7CD;
+  --primary: #344E41;
+  --primary-text: #FFFFFF;
+  --sage-surface: #E3E8D9;
+  --accent-travel: #A64B3C;
+  --accent-travel-text: #FFFFFF;
+  --accent-travel-surface: #F2E3DC;
+  --travel-cream: #F7F1E7;
+  --travel-coffee: #493A32;
+  --success: #18794E;
+  --warning: #986A12;
+  --warning-surface: #F6ECD4;
+  --error: #B93838;
+  --info: #326DA8;
+  --mark: #E9DFB8;
+  --scrim: rgba(23, 33, 27, 0.45);
+  --shadow: rgba(36, 50, 41, 0.28);
+
+  --cat1: #344E41; --cat2: #8C9C72; --cat3: #A64B3C; --cat4: #C9A87F; --cat5: #493A32;
+  --cat6: #326DA8; --cat7: #986A12; --cat8: #6F8F87; --cat9: #B7705C; --cat10: #9A9A8E;
+
+  --font: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --r-card: 14px;
+  --r-ctl: 11px;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+  --tabbar-h: 54px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #17211B; --surface: #222E26; --surface-subtle: #2C3A30;
+    --text-primary: #F5F3EB; --text-secondary: #C5CEC2; --border: #405044;
+    --primary: #A3B18A; --primary-text: #17211B; --sage-surface: #34442F;
+    --accent-travel: #E08A76; --accent-travel-text: #17211B; --accent-travel-surface: #432D29;
+    --travel-cream: #2E2724; --travel-coffee: #E8D6C4;
+    --success: #72C69A; --warning: #E5C16B; --warning-surface: #3A3220; --error: #FF8B8B; --info: #8CBDF0;
+    --mark: #5A5230; --scrim: rgba(0, 0, 0, 0.6); --shadow: rgba(0, 0, 0, 0.5);
+    --cat1: #A3B18A; --cat2: #6F9A6E; --cat3: #E08A76; --cat4: #D8BFA0; --cat5: #C29B83;
+    --cat6: #8CBDF0; --cat7: #E5C16B; --cat8: #8FB8AE; --cat9: #D7A08C; --cat10: #8E968C;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #17211B; --surface: #222E26; --surface-subtle: #2C3A30;
+  --text-primary: #F5F3EB; --text-secondary: #C5CEC2; --border: #405044;
+  --primary: #A3B18A; --primary-text: #17211B; --sage-surface: #34442F;
+  --accent-travel: #E08A76; --accent-travel-text: #17211B; --accent-travel-surface: #432D29;
+  --travel-cream: #2E2724; --travel-coffee: #E8D6C4;
+  --success: #72C69A; --warning: #E5C16B; --warning-surface: #3A3220; --error: #FF8B8B; --info: #8CBDF0;
+  --mark: #5A5230; --scrim: rgba(0, 0, 0, 0.6); --shadow: rgba(0, 0, 0, 0.5);
+  --cat1: #A3B18A; --cat2: #6F9A6E; --cat3: #E08A76; --cat4: #D8BFA0; --cat5: #C29B83;
+  --cat6: #8CBDF0; --cat7: #E5C16B; --cat8: #8FB8AE; --cat9: #D7A08C; --cat10: #8E968C;
+  color-scheme: dark;
+}
