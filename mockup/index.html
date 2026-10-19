@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CzechMate">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>CzechMate 捷適旅</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#F5F3EB">
+<style>
+/* Layout: single phone-width column (max 430px) with sticky top bar and sticky bottom tab bar; sheets slide up for forms. Tokens follow CzechMate_UI_Spec v1.1. */
+:root {
+  --background: #F5F3EB;
+  --surface: #FFFFFF;
+  --surface-subtle: #ECEAE1;
+  --text-primary: #243229;
+  --text-secondary: #59665B;
+  --border: #DAD7CD;
+  --primary: #344E41;
+  --primary-text: #FFFFFF;
+  --sage: #A3B18A;
+  --sage-surface: #E3E8D9;
+  --accent-travel: #A64B3C;
+  --accent-travel-surface: #F2E3DC;
+  --travel-cream: #F7F1E7;
+  --travel-coffee: #493A32;
+  --success: #18794E;
+  --warning: #986A12;
+  --warning-surface: #F6ECD4;
+  --error: #B93838;
+  --info: #326DA8;
+  --mark: #E9DFB8;
+  --scrim: rgba(23, 33, 27, .45);
+  --cat1: #344E41; --cat2: #8C9C72; --cat3: #A64B3C; --cat4: #C9A87F;
+  --cat5: #493A32; --cat6: #326DA8; --cat7: #986A12; --cat8: #6F8F87; --cat9: #B7705C; --cat10: #9A9A8E;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --r-card: 14px; --r-ctl: 11px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #17211B; --surface: #222E26; --surface-subtle: #2C3A30;
+    --text-primary: #F5F3EB; --text-secondary: #C5CEC2; --border: #405044;
+    --primary: #A3B18A; --primary-text: #17211B; --sage: #A3B18A; --sage-surface: #34442F;
+    --accent-travel: #E08A76; --accent-travel-surface: #432D29; --travel-cream: #2E2724; --travel-coffee: #E8D6C4;
+    --success: #72C69A; --warning: #E5C16B; --warning-surface: #3A3220; --error: #FF8B8B; --info: #8CBDF0;
+    --mark: #5A5230; --scrim: rgba(0, 0, 0, .6);
+    --cat1: #A3B18A; --cat2: #6F9A6E; --cat3: #E08A76; --cat4: #D8BFA0;
+    --cat5: #C29B83; --cat6: #8CBDF0; --cat7: #E5C16B; --cat8: #8FB8AE; --cat9: #D7A08C; --cat10: #8E968C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --background: #17211B; --surface: #222E26; --surface-subtle: #2C3A30;
+  --text-primary: #F5F3EB; --text-secondary: #C5CEC2; --border: #405044;
+  --primary: #A3B18A; --primary-text: #17211B; --sage: #A3B18A; --sage-surface: #34442F;
+  --accent-travel: #E08A76; --accent-travel-surface: #432D29; --travel-cream: #2E2724; --travel-coffee: #E8D6C4;
+  --success: #72C69A; --warning: #E5C16B; --warning-surface: #3A3220; --error: #FF8B8B; --info: #8CBDF0;
+  --mark: #5A5230; --scrim: rgba(0, 0, 0, .6);
+  --cat1: #A3B18A; --cat2: #6F9A6E; --cat3: #E08A76; --cat4: #D8BFA0;
+  --cat5: #C29B83; --cat6: #8CBDF0; --cat7: #E5C16B; --cat8: #8FB8AE; --cat9: #D7A08C; --cat10: #8E968C;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--background); color: var(--text-primary); font-family: var(--font); font-size: 15px; line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.app { max-width: 430px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; background: var(--background); }
+@media (min-width: 560px) { .app { border-inline: 1px solid var(--border); } }
+
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--background); padding-block: 12px 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 8px; border-bottom: 1px solid transparent; }
+.topbar h1 { font-size: 24px; font-weight: 600; margin: 0; flex: 1; text-wrap: balance; }
+.topbar .sub { font-size: 12px; color: var(--text-secondary); font-weight: 400; display: block; letter-spacing: .02em; }
+.iconbtn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); display: grid; place-items: center; }
+.iconbtn svg { width: 22px; height: 22px; }
+
+main { flex: 1; padding-block: 4px 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 20px; }
+section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.sec-h h2 { font-size: 18px; font-weight: 600; margin: 0; }
+.sec-h .link { font-size: 13px; color: var(--primary); background: none; border: 0; padding: 6px 0; }
+.muted { color: var(--text-secondary); }
+.small { font-size: 13px; }
+.tiny { font-size: 12px; }
+
+.tabs { position: sticky; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(4, 1fr); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.tabs button { background: none; border: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; font-size: 11px; color: var(--text-secondary); min-height: 54px; }
+.tabs button svg { width: 24px; height: 24px; }
+.tabs button[aria-current="page"] { color: var(--primary); font-weight: 600; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: 14px 16px; }
+.banner { display: flex; align-items: center; gap: 10px; background: var(--warning-surface); color: var(--text-primary); border-radius: 12px; padding: 10px 12px; font-size: 14px; border: 0; text-align: left; width: 100%; }
+.banner svg { width: 20px; height: 20px; color: var(--warning); flex: none; }
+.banner b { color: var(--warning); font-weight: 600; }
+.banner .go { margin-left: auto; color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+
+.pins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.pin { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; min-height: 76px; }
+.pin .ico { width: 34px; height: 34px; border-radius: 10px; background: var(--sage-surface); color: var(--primary); display: grid; place-items: center; font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+.pin span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: 4px; }
+
+.summary { display: flex; flex-direction: column; gap: 10px; }
+.summary .big { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.summary .big small { font-size: 15px; font-weight: 500; color: var(--text-secondary); margin-right: 4px; }
+.bar { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--surface-subtle); }
+.bar i { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+
+.btn { min-height: 46px; border-radius: var(--r-ctl); border: 1px solid transparent; padding: 0 18px; font-weight: 600; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-primary { background: var(--primary); color: var(--primary-text); }
+.btn-secondary { background: var(--surface-subtle); color: var(--primary); }
+.btn-danger { background: none; color: var(--error); border-color: var(--error); }
+.btn-block { width: 100%; }
+.btn svg { width: 20px; height: 20px; }
+
+.list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; border-top: 1px solid var(--border); background: none; text-align: left; width: 100%; min-height: 56px; }
+.row:first-child { border-top: 0; }
+.row .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row .t { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .m { font-size: 12px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.row .amt { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+.row .amt b { font-size: 15px; font-weight: 600; }
+.row .amt span { font-size: 12px; color: var(--text-secondary); }
+.row .amt .pending { color: var(--warning); font-weight: 600; }
+.caticon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; color: #fff; font-size: 13px; font-weight: 700; }
+.day-h { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); padding: 0 4px; margin-bottom: -4px; }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface-subtle); color: var(--text-secondary); white-space: nowrap; }
+.chip.travel { background: var(--accent-travel-surface); color: var(--accent-travel); }
+.chip.green { background: var(--sage-surface); color: var(--primary); }
+.chip.warn { background: var(--warning-surface); color: var(--warning); }
+
+.scroller { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+.scroller::-webkit-scrollbar { display: none; }
+.fchip { flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; color: var(--text-primary); }
+.fchip[aria-pressed="true"] { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-subtle); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button { min-height: 38px; border: 0; border-radius: 9px; background: none; font-size: 14px; color: var(--text-secondary); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg.travel button[aria-pressed="true"] { color: var(--accent-travel); }
+
+.search { position: relative; }
+.search input { width: 100%; min-height: 46px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); padding: 0 40px 0 40px; font-size: 16px; }
+.search input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--sage-surface); }
+.search svg { position: absolute; left: 12px; top: 13px; width: 20px; height: 20px; color: var(--text-secondary); }
+.search .clear { position: absolute; right: 4px; top: 4px; width: 38px; height: 38px; border: 0; background: none; color: var(--text-secondary); font-size: 18px; }
+
+.res { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-card); text-align: left; width: 100%; }
+.res .ticon { width: 38px; height: 38px; border-radius: 10px; background: var(--sage-surface); color: var(--primary); display: grid; place-items: center; flex: none; }
+.res .ticon svg { width: 20px; height: 20px; }
+.res .ticon.book { background: var(--travel-cream); color: var(--travel-coffee); border: 1px solid var(--border); }
+.res .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.res .t { font-weight: 500; font-size: 16px; display: flex; gap: 6px; align-items: center; }
+.res .t svg { width: 14px; height: 14px; color: var(--text-secondary); flex: none; }
+.res .p { font-size: 13px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.res .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.res .date { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+.group-h { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: .04em; }
+.group-h .n { font-weight: 400; }
+.sync { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.sync svg { width: 14px; height: 14px; color: var(--success); }
+
+.fab { position: sticky; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); align-self: flex-end; margin-right: max(16px, env(safe-area-inset-right, 0px)); margin-top: -70px; z-index: 4; height: 54px; border-radius: 16px; border: 0; padding: 0 18px 0 14px; background: var(--primary); color: var(--primary-text); font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(36, 50, 41, .28); }
+.fab svg { width: 22px; height: 22px; }
+.fab-spacer { height: 64px; flex: none; }
+
+.empty { text-align: center; padding: 28px 16px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+
+/* stock cards */
+.stocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
+.stock { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+.stock .cur { font-size: 12px; color: var(--text-secondary); letter-spacing: .06em; font-weight: 600; }
+.stock .bal { font-size: 22px; font-weight: 700; }
+.stock .avg { font-size: 12px; color: var(--text-secondary); }
+.stock.neg .bal { color: var(--error); }
+
+/* donut */
+.donut-wrap { display: flex; gap: 16px; align-items: center; }
+.donut { width: 140px; height: 140px; flex: none; }
+.donut text { fill: var(--text-primary); }
+.donut .lbl { fill: var(--text-secondary); font-size: 10px; }
+.catlist { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; font-size: 13px; }
+.catlist div { display: flex; align-items: center; gap: 8px; }
+.catlist .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catlist .v { font-variant-numeric: tabular-nums; }
+.catlist .pct { color: var(--text-secondary); width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 360px) { .donut-wrap { flex-direction: column; align-items: stretch; } .donut { align-self: center; } }
+
+.monthnav { display: flex; align-items: center; justify-content: space-between; }
+.monthnav b { font-size: 17px; }
+.monthnav button { width: 44px; height: 44px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; font-size: 18px; }
+.monthnav button:disabled { opacity: .35; }
+
+.trip { background: var(--travel-cream); border: 1px solid var(--border); border-radius: var(--r-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; text-align: left; width: 100%; }
+.trip .h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.trip .name { font-size: 17px; font-weight: 600; color: var(--travel-coffee); }
+.trip .total { font-size: 20px; font-weight: 700; color: var(--accent-travel); }
+.trip .meta { font-size: 13px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
+
+.pay { display: flex; flex-direction: column; gap: 6px; }
+.pay .h { display: flex; justify-content: space-between; align-items: center; }
+.pay .h b { font-size: 16px; }
+.kv { display: flex; justify-content: space-between; font-size: 14px; gap: 8px; }
+.kv span:first-child { color: var(--text-secondary); }
+.fill { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border); }
+.fill .main { flex: 1; min-width: 0; font-size: 14px; }
+.fill input { width: 96px; min-height: 40px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 0 8px; font-size: 16px; text-align: right; }
+.fill button { min-height: 40px; border-radius: 10px; border: 0; background: var(--primary); color: var(--primary-text); padding: 0 12px; font-weight: 600; }
+
+/* sheet */
+.sheet { position: fixed; inset: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.sheet .panel { width: 100%; max-width: 430px; max-height: calc(100% - 24px - env(safe-area-inset-top, 0px)); overflow-y: auto; background: var(--background); border-radius: 20px 20px 0 0; padding-block: 8px calc(20px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 16px; animation: up .22s ease-out; }
+@keyframes up { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet .panel { animation: none; } }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--border); margin: 0 auto; flex: none; }
+.sheet-h { display: flex; align-items: center; gap: 8px; }
+.sheet-h h2 { flex: 1; margin: 0; font-size: 18px; font-weight: 600; }
+.sheet-h button { border: 0; background: none; color: var(--primary); min-height: 44px; padding: 0 4px; font-size: 16px; }
+.form-travel { background: var(--travel-cream); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .field > .lab { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.field input[type="text"], .field input[type="date"], .field input[type="number"], .field textarea, .field input[inputmode] { min-height: 46px; border-radius: var(--r-ctl); border: 1px solid var(--border); background: var(--surface); padding: 10px 12px; font-size: 16px; width: 100%; }
+.field textarea { min-height: 84px; resize: vertical; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--sage-surface); }
+.form-travel .field input:focus, .form-travel .field textarea:focus { border-color: var(--accent-travel); box-shadow: 0 0 0 3px var(--accent-travel-surface); }
+.field .err { color: var(--error); font-size: 13px; display: flex; gap: 4px; align-items: center; }
+.field.invalid input { border-color: var(--error); }
+.amount-in { font-size: 32px !important; font-weight: 700; min-height: 60px !important; font-variant-numeric: tabular-nums; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.opt { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; }
+.opt[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-text); font-weight: 600; }
+.form-travel .opt[aria-pressed="true"] { background: var(--accent-travel); border-color: var(--accent-travel); color: #fff; }
+.form-travel .btn-primary { background: var(--accent-travel); color: #fff; }
+:root[data-theme="dark"] .form-travel .btn-primary, :root[data-theme="dark"] .form-travel .opt[aria-pressed="true"] { color: #17211B; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .form-travel .btn-primary, :root:not([data-theme="light"]) .form-travel .opt[aria-pressed="true"] { color: #17211B; } }
+.hint { font-size: 13px; color: var(--text-secondary); background: var(--surface-subtle); border-radius: 10px; padding: 8px 10px; }
+.hint.warn { background: var(--warning-surface); color: var(--warning); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions { display: flex; gap: 10px; }
+.actions .btn { flex: 1; }
+.confirm { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--error); border-radius: 12px; padding: 12px; }
+
+.detail h3 { font-size: 22px; margin: 0; font-weight: 600; text-wrap: balance; }
+.detail .content { white-space: pre-wrap; line-height: 1.75; font-size: 15px; }
+.detail a { color: var(--primary); word-break: break-all; }
+.shot { border-radius: 12px; border: 1px solid var(--border); background: repeating-linear-gradient(135deg, var(--surface-subtle) 0 10px, var(--surface) 10px 20px); aspect-ratio: 9 / 12; max-width: 100%; width: 160px; display: grid; place-items: center; color: var(--text-secondary); font-size: 12px; }
+
+.setgroup { display: flex; flex-direction: column; gap: 8px; }
+.setgroup h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: .04em; }
+.setrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--text-primary); color: var(--background); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.2); display: flex; gap: 8px; align-items: center; }
+.toast svg { width: 18px; height: 18px; flex: none; }
+.demo-note { font-size: 12px; color: var(--text-secondary); text-align: center; padding: 4px 0 0; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="topbar" id="topbar"></header>
+  <main id="view"></main>
+  <nav class="tabs" id="tabs" aria-label="主要導覽"></nav>
+</div>
+<div id="sheet-root"></div>
+<div id="toast-root"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- icons ---------- */
+  const I = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>',
+    lib: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h5v16H4zM10 4h5v16h-5z"/><path d="m16 5 4-1 2.5 15.5-4 .8z"/></svg>',
+    wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M3 10h18M16 15h2"/><path d="M6 6V5a1 1 0 0 1 1.2-1l10 2"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+    pin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3l6 6-3 1-3 3 .5 4.5L14 19l-4-4-5 5-1-1 5-5-4-4 1.5-1.5L11 9l3-3z"/></svg>',
+    img: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
+    note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>'
+  };
+
+  /* ---------- sample data ---------- */
+  const TODAY = '2027-03-15';
+  const CURS = ['CZK', 'EUR', 'TWD', 'HUF', 'PLN', 'GBP'];
+  const DEC = { TWD: 0, CZK: 0, HUF: 0, EUR: 2, PLN: 2, GBP: 2 };
+  const MODES = [
+    { id: 'prep', name: '出發前', full: '出發前準備' },
+    { id: 'daily', name: '日常', full: '日常生活' },
+    { id: 'travel', name: '旅遊', full: '旅遊' }
+  ];
+  const CATS = {
+    prep: ['機票', '簽證／居留', '保險', '學費／押金', '體檢／疫苗', '文件規費', '行李用品', '其他'],
+    daily: ['餐飲', '超市', '交通', '房租／住宿', '電信', '學校', '日用品', '娛樂', '其他'],
+    travel: ['交通', '住宿', '餐飲', '門票／景點', '紀念品', '其他']
+  };
+  const CATCOLOR = {
+    '房租／住宿': 1, '住宿': 1, '學費／押金': 1, '超市': 2, '體檢／疫苗': 2, '餐飲': 3, '日用品': 4, '行李用品': 4,
+    '電信': 5, '保險': 5, '交通': 6, '機票': 6, '學校': 7, '簽證／居留': 7, '娛樂': 8, '門票／景點': 8, '文件規費': 8,
+    '紀念品': 9, '其他': 10
+  };
+  const catVar = c => 'var(--cat' + (CATCOLOR[c] || 10) + ')';
+  const PAYS = [
+    { id: 'cash', name: '現金', type: 'cash' },
+    { id: 'cube', name: '國泰世華 Cube', type: 'credit' },
+    { id: 'ctbcd', name: '中信簽帳卡', type: 'debit' },
+    { id: 'uni', name: '中信 uniopen', type: 'credit' },
+    { id: 'mega', name: '兆豐 Mega', type: 'credit' }
+  ];
+  const payOf = id => PAYS.find(p => p.id === id);
+  const trips = [
+    { id: 'bud', name: '布達佩斯週末', start: '2027-02-20', end: '2027-02-22' },
+    { id: 'vie', name: '維也納三日遊', start: '2027-03-05', end: '2027-03-07' }
+  ];
+  const tripOf = id => trips.find(t => t.id === id);
+
+  let seq = 100;
+  const E = (date, mode, cat, amt, cur, pay, name, extra) => Object.assign({ id: 'e' + (seq++), date, mode, cat, amt, cur, pay, name, trip: null, place: '', note: '', bill: null }, extra || {});
+  const expenses = [
+    E('2026-11-12', 'prep', '機票', 28500, 'TWD', 'cube', 'TPE → PRG 單程機票'),
+    E('2026-12-03', 'prep', '保險', 9800, 'TWD', 'ctbcd', '海外留學保險 6 個月'),
+    E('2026-12-20', 'prep', '文件規費', 1200, 'TWD', 'cash', '簽證照片與文件翻譯'),
+    E('2027-01-05', 'prep', '行李用品', 3280, 'TWD', 'uni', '28 吋行李箱'),
+    E('2027-01-12', 'prep', '體檢／疫苗', 1500, 'TWD', 'cash', '出國體檢'),
+    E('2027-01-25', 'daily', '房租／住宿', 7800, 'CZK', 'ctbcd', '2 月宿舍費', { bill: 11290, place: 'Strahov 宿舍' }),
+    E('2027-01-26', 'daily', '電信', 300, 'CZK', 'cash', 'Vodafone 預付卡'),
+    E('2027-02-03', 'daily', '超市', 642, 'CZK', 'cash', 'Albert 採買'),
+    E('2027-02-14', 'daily', '餐飲', 380, 'CZK', 'uni', '情人節晚餐', { bill: 552 }),
+    E('2027-02-20', 'travel', '交通', 24.99, 'EUR', 'cube', 'RegioJet 布拉格 → 布達佩斯', { trip: 'bud', bill: 880 }),
+    E('2027-02-20', 'travel', '住宿', 38, 'EUR', 'mega', '青年旅館 2 晚', { trip: 'bud', bill: 1338 }),
+    E('2027-02-21', 'travel', '門票／景點', 11000, 'HUF', 'cash', 'Széchenyi 溫泉', { trip: 'bud' }),
+    E('2027-02-21', 'travel', '餐飲', 4800, 'HUF', 'cash', '匈牙利燉牛肉', { trip: 'bud', place: 'Budapest' }),
+    E('2027-02-22', 'travel', '紀念品', 3500, 'HUF', 'cash', '紅椒粉', { trip: 'bud' }),
+    E('2027-03-01', 'daily', '房租／住宿', 7800, 'CZK', 'ctbcd', '3 月宿舍費', { bill: 11310, place: 'Strahov 宿舍' }),
+    E('2027-03-02', 'daily', '交通', 130, 'CZK', 'cube', 'Lítačka 學生月票'),
+    E('2027-03-03', 'daily', '超市', 518, 'CZK', 'cash', 'Lidl 採買'),
+    E('2027-03-05', 'travel', '交通', 19.9, 'EUR', 'cube', 'RegioJet 布拉格 → 維也納', { trip: 'vie', bill: 718 }),
+    E('2027-03-05', 'travel', '住宿', 64, 'EUR', 'mega', '青年旅館 2 晚', { trip: 'vie', bill: 2296 }),
+    E('2027-03-06', 'travel', '門票／景點', 26, 'EUR', 'cube', '美泉宮 Grand Tour', { trip: 'vie' }),
+    E('2027-03-06', 'travel', '餐飲', 18.5, 'EUR', 'cash', '維也納炸肉排', { trip: 'vie', place: 'Wien' }),
+    E('2027-03-07', 'travel', '紀念品', 12, 'EUR', 'cash', '莫札特巧克力', { trip: 'vie' }),
+    E('2027-03-09', 'daily', '學校', 250, 'CZK', 'cash', 'ISIC 學生證'),
+    E('2027-03-10', 'daily', '餐飲', 95, 'CZK', 'cash', 'Menza 午餐'),
+    E('2027-03-11', 'daily', '日用品', 239, 'CZK', 'uni', 'dm 日用品'),
+    E('2027-03-12', 'daily', '電信', 300, 'CZK', 'mega', 'Vodafone 儲值'),
+    E('2027-03-13', 'daily', '娛樂', 290, 'CZK', 'cash', '國家劇院學生票'),
+    E('2027-03-14', 'daily', '餐飲', 75, 'CZK', 'cash', 'Café Louvre 咖啡'),
+    E('2027-03-15', 'daily', '超市', 412, 'CZK', 'cash', 'Albert 採買')
+  ];
+  const fx = [
+    { id: 'f1', date: '2027-01-08', method: 'cash', card: null, outAmt: 9800, outCur: 'TWD', inAmt: 7000, inCur: 'CZK', place: '台灣銀行', note: '' },
+    { id: 'f2', date: '2027-01-08', method: 'cash', card: null, outAmt: 5000, outCur: 'TWD', inAmt: 145, inCur: 'EUR', place: '台灣銀行', note: '' },
+    { id: 'f3', date: '2027-02-19', method: 'cash', card: null, outAmt: 50, outCur: 'EUR', inAmt: 19500, inCur: 'HUF', place: 'Exchange Praha 1', note: '' },
+    { id: 'f4', date: '2027-03-01', method: 'atm', card: 'cube', outAmt: 4260, outCur: 'TWD', inAmt: 3000, inCur: 'CZK', place: 'ATM Václavské náměstí', note: '台幣為預估，帳單出來再改' }
+  ];
+  const resources = [
+    { id: 'r1', title: 'KOS 選課系統', type: '網站', stage: '抵達後', url: 'https://kos.cvut.cz', tags: ['學校', '選課'], content: '選課、看課表與成績。開學前一週開放加退選。', pinned: true, short: 'KOS', updated: '2027-01-30' },
+    { id: 'r2', title: 'Moodle', type: '網站', stage: '抵達後', url: 'https://moodle.cvut.cz', tags: ['學校', '作業'], content: '課程講義與作業繳交。', pinned: true, short: 'MO', updated: '2027-02-02' },
+    { id: 'r3', title: 'CTU 學校信箱', type: '網站', stage: '不分', url: 'https://outlook.office.com', tags: ['學校'], content: '學校帳號登入 Outlook。', pinned: true, short: 'Mail', updated: '2027-01-30' },
+    { id: 'r4', title: 'Lítačka 交通卡', type: '網站', stage: '抵達後', url: 'https://www.litacka.cz', tags: ['交通'], content: '線上購買學生月票，綁 ISIC 卡號。', pinned: true, short: 'Lí', updated: '2027-02-28' },
+    { id: 'r5', title: 'PID 大眾運輸', type: '網站', stage: '抵達後', url: 'https://pid.cz', tags: ['交通'], content: '布拉格電車、地鐵、公車路線查詢。', pinned: true, short: 'PID', updated: '2027-02-01' },
+    { id: 'r6', title: 'CTU 宿舍申請經驗', type: 'Dcard', stage: '出發前', url: 'https://www.dcard.tw/', tags: ['宿舍', '申請'], content: '（範例內容）作者分享申請 Strahov 與 Sinkule 宿舍的經驗：申請開放當天就要填，雙人房最快額滿；押金要先匯款，收據記得留。抵達當天拿鑰匙要帶護照與入住確認信。', pinned: false, updated: '2026-10-21' },
+    { id: 'r7', title: '居留登記要帶的文件', type: '截圖', stage: '抵達後', url: '', tags: ['居留', '移民局'], content: '（範例內容）抵達後 3 個工作天內到移民局報到：護照、簽證頁影本、住宿證明、保險證明。', pinned: false, img: true, updated: '2026-11-03' },
+    { id: 'r8', title: '長期簽證申請流程整理', type: '筆記', stage: '出發前', url: '', tags: ['簽證', '文件'], content: '（範例內容）1. 預約駐台北辦事處面談\n2. 準備入學許可、住宿證明、財力證明、無犯罪紀錄（需翻譯與認證）\n3. 面談後約 60 天核發', pinned: false, updated: '2026-10-25' },
+    { id: 'r9', title: '捷克電信方案比較', type: 'Dcard', stage: '抵達後', url: 'https://www.dcard.tw/', tags: ['電信', 'Vodafone'], content: '（範例內容）三家電信比較：Vodafone 學生方案流量多，O2 收訊範圍廣，T-Mobile 預付卡在超商就能儲值。', pinned: false, updated: '2026-11-10' },
+    { id: 'r10', title: '布達佩斯兩天一夜行程', type: '筆記', stage: '旅遊', url: '', tags: ['匈牙利', '溫泉'], content: '（範例內容）Day 1：國會大廈、漁人堡、多瑙河夜景\nDay 2：Széchenyi 溫泉、中央市場', pinned: false, updated: '2027-02-15' },
+    { id: 'r11', title: '歐洲火車通行證心得', type: 'Dcard', stage: '旅遊', url: 'https://www.dcard.tw/', tags: ['火車', '交通'], content: '（範例內容）短程中歐移動買 RegioJet 單程票通常比通行證划算，提早訂有學生價。', pinned: false, updated: '2026-12-01' }
+  ];
+  const HB = 'https://hackmd.io/@tchajwan/';
+  const handbook = [
+    { page: '申辦電信網路篇', sec: '預付卡怎麼選', url: HB + 'BJe6U5sDR', text: '（範例預覽）比較各家電信的預付卡與學生方案，說明在哪裡購買 SIM 卡、如何儲值與開通網路。' },
+    { page: '交通運輸篇', sec: '學生月票與 Lítačka', url: HB + 'H16eptoDR', text: '（範例預覽）布拉格大眾運輸的票種介紹，學生月票如何透過 Lítačka 綁定 ISIC 卡購買，以及驗票注意事項。' },
+    { page: '信用卡和銀行開戶篇', sec: '出發前要準備幾張卡', url: HB + 'r1T5Xcov0', text: '（範例預覽）建議準備海外回饋信用卡與簽帳卡各一張，並說明在捷克開立銀行帳戶的流程。' },
+    { page: '來捷克交換前-準備篇', sec: '簽證與文件', url: HB + 'SknGZ5svR', text: '（範例預覽）長期簽證需要的文件清單、翻譯與認證流程，以及預約面談的時程規劃。' },
+    { page: '看醫生(醫藥衛生)篇', sec: '如何預約醫生', url: HB + 'S1fUO9jPC', text: '（範例預覽）保險可以使用的診所、如何預約、看診時需要帶的保險證明。' },
+    { page: '學生證ISIC卡優惠篇', sec: 'ISIC 能享有的折扣', url: HB + 'ByJs1ojvA', text: '（範例預覽）持 ISIC 學生證在交通、博物館與餐廳可享的優惠整理。' },
+    { page: '超市食材篇', sec: '常見超市比較', url: HB + 'HyrRn9oDC', text: '（範例預覽）Albert、Lidl、Billa、Kaufland 等超市的價格與品項比較。' },
+    { page: '生活娛樂篇', sec: '劇院與音樂會學生票', url: HB + 'HkD8R5oP0', text: '（範例預覽）國家劇院與音樂廳的學生票與站票購買方式。' }
+  ];
+
+  /* ---------- money engine (moving average) ---------- */
+  const fmt = (n, cur) => {
+    const d = DEC[cur] ?? 2;
+    return Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  };
+  const twd = n => 'NT$ ' + Math.round(n).toLocaleString('en-US');
+  let stock = {}, avg = {}, lowStock = {};
+
+  function recompute() {
+    const events = [];
+    fx.forEach((f, i) => events.push({ k: 'fx', d: f.date, o: 0, i, f }));
+    expenses.forEach((e, i) => events.push({ k: 'ex', d: e.date, o: 1, i, e }));
+    events.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : a.o - b.o || a.i - b.i);
+    stock = {}; avg = {}; lowStock = {};
+    for (const ev of events) {
+      if (ev.k === 'fx') {
+        const f = ev.f;
+        let cost;
+        if (f.outCur === 'TWD') cost = f.outAmt;
+        else { cost = f.outAmt * (avg[f.outCur] || 0); stock[f.outCur] = (stock[f.outCur] || 0) - f.outAmt; }
+        const s = stock[f.inCur] || 0, a = avg[f.inCur] || 0;
+        const ns = s + f.inAmt;
+        avg[f.inCur] = ns > 0 ? (Math.max(s, 0) * a + cost) / (Math.max(s, 0) + f.inAmt) : cost / f.inAmt;
+        stock[f.inCur] = ns;
+        f.rate = cost / f.inAmt;
+      } else {
+        const e = ev.e, p = payOf(e.pay);
+        e.rate = null;
+        if (e.cur === 'TWD') { e.twd = e.amt; e.src = '台幣'; }
+        else if (p.type === 'cash') {
+          if (avg[e.cur]) {
+            e.rate = avg[e.cur]; e.twd = e.amt * avg[e.cur]; e.src = '現金換算';
+            stock[e.cur] = (stock[e.cur] || 0) - e.amt;
+            if (stock[e.cur] < 0) lowStock[e.cur] = true;
+          } else { e.twd = null; e.src = '待補'; }
+        } else if (e.bill) { e.twd = e.bill; e.src = '帳單'; }
+        else { e.twd = null; e.src = '待補'; }
+      }
+    }
+  }
+
+  /* ---------- state ---------- */
+  const S = {
+    tab: 'home', ledgerSeg: 'exp', ledgerPeriod: 'month', ledgerMode: 'all', pendingOnly: false,
+    statSeg: 'month', statMode: 'all', statMonth: '2027-03', openTrip: 'vie', openPay: null,
+    q: '', stage: '全部', rtype: '全部',
+    lastMode: 'daily', lastCur: 'CZK', lastPay: 'cash'
+  };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const md = d => { const [, m, dd] = d.split('-'); return +m + '/' + +dd; };
+  const ymd = d => d.replace(/-/g, '/');
+  const ym = d => d.slice(0, 7);
+  const ymLabel = s => { const [y, m] = s.split('-'); return y + ' 年 ' + +m + ' 月'; };
+  const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+  const wd = d => '週' + WEEK[new Date(d + 'T00:00:00').getDay()];
+  const $ = s => document.querySelector(s);
+
+  function toast(msg, ok) {
+    const r = $('#toast-root');
+    r.innerHTML = '<div class="toast" role="status">' + (ok === false ? I.alert : I.check) + '<span>' + esc(msg) + '</span></div>';
+    clearTimeout(toast.t); toast.t = setTimeout(() => { r.innerHTML = ''; }, 2400);
+  }
+
+  /* ---------- shell ---------- */
+  const TABS = [
+    { id: 'home', name: '首頁', icon: I.home },
+    { id: 'lib', name: '資源庫', icon: I.lib },
+    { id: 'ledger', name: '記帳', icon: I.wallet },
+    { id: 'stats', name: '統計', icon: I.chart }
+  ];
+  function renderTabs() {
+    $('#tabs').innerHTML = TABS.map(t => '<button data-tab="' + t.id + '"' + (S.tab === t.id ? ' aria-current="page"' : '') + '>' + t.icon + '<span>' + t.name + '</span></button>').join('');
+  }
+  function setTop(title, sub, right) {
+    $('#topbar').innerHTML = '<h1>' + (sub ? '<span class="sub">' + sub + '</span>' : '') + title + '</h1>' + (right || '');
+  }
+  function render() {
+    recompute();
+    renderTabs();
+    const v = $('#view');
+    if (S.tab === 'home') v.innerHTML = viewHome();
+    else if (S.tab === 'lib') v.innerHTML = viewLib();
+    else if (S.tab === 'ledger') v.innerHTML = viewLedger();
+    else v.innerHTML = viewStats();
+  }
+  function go(tab) { S.tab = tab; render(); window.scrollTo(0, 0); }
+
+  /* ---------- helpers ---------- */
+  const pending = () => expenses.filter(e => e.src === '待補' && payOf(e.pay).type !== 'cash');
+  function sumByCat(list) {
+    const m = {};
+    list.forEach(e => { if (e.twd != null) m[e.cat] = (m[e.cat] || 0) + e.twd; });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }
+  const total = list => list.reduce((s, e) => s + (e.twd || 0), 0);
+  function pendingNote(list) {
+    const p = list.filter(e => e.src === '待補');
+    if (!p.length) return '';
+    const by = {};
+    p.forEach(e => { by[e.cur] = (by[e.cur] || 0) + e.amt; });
+    return '<span class="chip warn">' + I.alert.replace('<svg', '<svg width="12" height="12"') + ' 另有 ' + p.length + ' 筆刷卡待補（' + Object.entries(by).map(([c, a]) => fmt(a, c) + ' ' + c).join('、') + '）</span>';
+  }
+  function catIcon(cat) { return '<span class="caticon" style="background:' + catVar(cat) + '" aria-hidden="true">' + esc(cat.slice(0, 1)) + '</span>'; }
+  function modeChip(m) {
+    const mm = MODES.find(x => x.id === m);
+    return '<span class="chip ' + (m === 'travel' ? 'travel' : m === 'prep' ? 'green' : '') + '">' + mm.name + '</span>';
+  }
+  function expRow(e) {
+    const p = payOf(e.pay);
+    const tw = e.cur === 'TWD' ? '' : (e.twd == null ? '<span class="pending">待補</span>' : '<span>≈ ' + twd(e.twd) + '</span>');
+    return '<button class="row" data-edit="' + e.id + '">' + catIcon(e.cat) +
+      '<span class="main"><span class="t">' + esc(e.name || e.cat) + '</span><span class="m">' + modeChip(e.mode) + '<span>' + esc(e.cat) + '</span><span>· ' + esc(p.name) + '</span>' +
+      (e.trip ? '<span class="chip travel">' + esc(tripOf(e.trip).name) + '</span>' : '') + '</span></span>' +
+      '<span class="amt num"><b>' + fmt(e.amt, e.cur) + ' <small>' + e.cur + '</small></b>' + tw + '</span></button>';
+  }
+  function donut(entries, center, sub) {
+    const tot = entries.reduce((s, x) => s + x[1], 0);
+    const r = 52, C = 2 * Math.PI * r;
+    let off = 0, segs = '';
+    entries.forEach(([cat, v]) => {
+      const len = tot ? v / tot * C : 0;
+      segs += '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="' + catVar(cat) + '" stroke-width="18" stroke-dasharray="' + Math.max(len - 1.5, 0) + ' ' + (C - Math.max(len - 1.5, 0)) + '" stroke-dashoffset="' + (-off) + '" transform="rotate(-90 70 70)"/>';
+      off += len;
+    });
+    if (!tot) segs = '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="var(--surface-subtle)" stroke-width="18"/>';
+    return '<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="類別圓環圖">' + segs +
+      '<text x="70" y="66" text-anchor="middle" class="lbl">' + sub + '</text><text x="70" y="84" text-anchor="middle" font-size="15" font-weight="700" class="num">' + center + '</text></svg>';
+  }
+  function catList(entries) {
+    const tot = entries.reduce((s, x) => s + x[1], 0) || 1;
+    return '<div class="catlist">' + entries.map(([c, v]) => '<div><i class="dot" style="background:' + catVar(c) + '"></i><span class="n">' + esc(c) + '</span><span class="v">' + twd(v) + '</span><span class="pct">' + Math.round(v / tot * 100) + '%</span></div>').join('') + '</div>';
+  }
+
+  /* ---------- HOME ---------- */
+  function viewHome() {
+    setTop('CzechMate', '捷適旅 · UI 樣稿', '<button class="iconbtn" data-act="settings" aria-label="設定">' + I.gear + '</button>');
+    const p = pending();
+    const month = expenses.filter(e => ym(e.date) === ym(TODAY));
+    const cats = sumByCat(month), tot = total(month);
+    const pins = resources.filter(r => r.pinned);
+    const recent = [...resources].sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, 3);
+    let h = '<p class="demo-note">以下皆為範例資料，操作不會真的儲存</p>';
+    h += '<section aria-label="提醒">';
+    if (p.length) h += '<button class="banner" data-act="pending">' + I.alert + '<span>有 <b>' + p.length + ' 筆</b>刷卡待補帳單金額</span><span class="go">去補 ›</span></button>';
+    h += '<button class="banner" data-act="export">' + I.alert + '<span>新的月份到了，<b>該匯出 2 月記帳</b></span><span class="go">匯出 ›</span></button>';
+    h += '</section>';
+    h += '<section><div class="sec-h"><h2>常用連結</h2><button class="link" data-act="pins">編輯</button></div><div class="pins">' +
+      pins.map(r => '<button class="pin" data-open="' + r.url + '"><span class="ico">' + esc(r.short) + '</span><span>' + esc(r.title.replace(' 選課系統', '').replace('CTU 學校', '')) + '</span></button>').join('') + '</div></section>';
+    h += '<section><div class="sec-h"><h2>' + ymLabel(ym(TODAY)) + '花費</h2><button class="link" data-goto="stats">看統計 ›</button></div><div class="card summary">' +
+      '<div class="big num"><small>NT$</small>' + Math.round(tot).toLocaleString('en-US') + '</div>' +
+      '<div class="bar">' + cats.map(([c, v]) => '<i style="width:' + (v / tot * 100) + '%;background:' + catVar(c) + '"></i>').join('') + '</div>' +
+      '<div class="legend">' + cats.slice(0, 3).map(([c, v]) => '<span><i class="dot" style="background:' + catVar(c) + '"></i>' + esc(c) + ' <b class="num">' + twd(v) + '</b></span>').join('') + '</div>' +
+      pendingNote(month) + '</div>' +
+      '<button class="btn btn-primary btn-block" data-act="add-exp">' + I.plus + '快速記一筆</button></section>';
+    h += '<section><div class="sec-h"><h2>最近新增的資源</h2><button class="link" data-goto="lib">全部 ›</button></div>' + recent.map(r => resCard(r)).join('') + '</section>';
+    return h;
+  }
+
+  /* ---------- LIBRARY ---------- */
+  const TYPE_ICON = { '網站': I.globe, 'Dcard': I.chat, '筆記': I.note, '截圖': I.img, '文件': I.file };
+  function hl(text, terms) {
+    let t = esc(text);
+    terms.forEach(w => { if (!w) return; const re = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'); t = t.replace(re, '<mark>$1</mark>'); });
+    return t;
+  }
+  function snippet(text, terms) {
+    const low = text.toLowerCase();
+    let i = -1;
+    for (const w of terms) { i = low.indexOf(w.toLowerCase()); if (i >= 0) break; }
+    if (i < 0) return text;
+    const s = Math.max(0, i - 30);
+    return (s > 0 ? '…' : '') + text.slice(s, i + 60) + (i + 60 < text.length ? '…' : '');
+  }
+  function resCard(r, terms) {
+    terms = terms || [];
+    const content = terms.length ? snippet(r.content, terms) : r.content;
+    return '<button class="res" data-res="' + r.id + '"><span class="ticon">' + TYPE_ICON[r.type] + '</span><span class="body">' +
+      '<span class="t">' + hl(r.title, terms) + (r.url ? I.link : '') + (r.img ? I.img : '') + (r.pinned ? I.pin : '') + '</span>' +
+      '<span class="p">' + hl(content, terms) + '</span>' +
+      '<span class="chips"><span class="chip ' + (r.stage === '旅遊' ? 'travel' : 'green') + '">' + r.stage + '</span>' + r.tags.map(t => '<span class="chip">#' + hl(t, terms) + '</span>').join('') +
+      '<span class="date num">' + ymd(r.updated) + '</span></span></span></button>';
+  }
+  function viewLib() {
+    setTop('資源庫', null, '<button class="iconbtn" data-act="settings" aria-label="設定">' + I.gear + '</button>');
+    const terms = S.q.trim().split(/\s+/).filter(Boolean);
+    const match = (hay) => terms.every(w => hay.toLowerCase().includes(w.toLowerCase()));
+    let mine = resources.filter(r => (S.stage === '全部' || r.stage === S.stage) && (S.rtype === '全部' || r.type === S.rtype));
+    if (terms.length) mine = mine.filter(r => match([r.title, r.content, r.tags.join(' '), r.url].join(' ')));
+    mine.sort((a, b) => b.updated.localeCompare(a.updated));
+    const hb = terms.length ? handbook.filter(h => match(h.page + ' ' + h.sec + ' ' + h.text)) : [];
+    let h = '<div class="search">' + I.search + '<input id="q" type="search" placeholder="搜尋資源與生存手冊" value="' + esc(S.q) + '" autocomplete="off" aria-label="搜尋">' +
+      (S.q ? '<button class="clear" data-act="clearq" aria-label="清除搜尋">✕</button>' : '') + '</div>';
+    h += '<div class="scroller" role="group" aria-label="階段篩選">' + ['全部', '出發前', '抵達後', '旅遊', '不分'].map(s => '<button class="fchip" data-stage="' + s + '" aria-pressed="' + (S.stage === s) + '">' + s + '</button>').join('') + '</div>';
+    h += '<div class="scroller" role="group" aria-label="類型篩選" style="margin-top:-12px">' + ['全部', '筆記', 'Dcard', '網站', '截圖'].map(s => '<button class="fchip" data-rtype="' + s + '" aria-pressed="' + (S.rtype === s) + '">' + (s === '全部' ? '所有類型' : s) + '</button>').join('') + '</div>';
+    h += '<div class="sync">' + I.check + '生存手冊已同步 30 篇 · 2027/03/10 21:04（範例）</div>';
+    h += '<section><div class="group-h">我的資源 <span class="n num">' + mine.length + ' 筆</span></div>';
+    h += mine.length ? mine.map(r => resCard(r, terms)).join('') :
+      '<div class="empty card"><span>找不到符合的資源，試試其他關鍵字或清除篩選條件。</span><button class="btn btn-secondary" data-act="clearall">清除條件</button></div>';
+    h += '</section>';
+    if (terms.length) {
+      h += '<section><div class="group-h">' + I.book.replace('<svg', '<svg width="16" height="16"') + ' 生存手冊 <span class="n num">' + hb.length + ' 段</span></div>';
+      h += hb.length ? hb.map(x => '<a class="res" href="' + x.url + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><span class="ticon book">' + I.book + '</span><span class="body"><span class="t" style="font-size:15px">' + hl(x.page, terms) + ' › ' + hl(x.sec, terms) + '</span><span class="p">' + hl(snippet(x.text, terms), terms) + '</span><span class="chips"><span class="chip">hackmd.io</span></span></span></a>').join('')
+        : '<div class="muted small">手冊裡沒有相符的段落。</div>';
+      h += '</section>';
+    } else {
+      h += '<p class="muted tiny" style="margin:-8px 0 0">試著搜尋「電信」、「簽證」或「ISIC」，會同時找出你的資源和生存手冊的段落。</p>';
+    }
+    h += '<div class="fab-spacer"></div><button class="fab" data-act="add-res">' + I.plus + '新增資源</button>';
+    return h;
+  }
+
+  /* ---------- LEDGER ---------- */
+  function viewLedger() {
+    setTop('記帳', null, '<button class="iconbtn" data-act="settings" aria-label="設定">' + I.gear + '</button>');
+    let h = '<div class="seg" role="group" aria-label="切換"><button data-lseg="exp" aria-pressed="' + (S.ledgerSeg === 'exp') + '">支出</button><button data-lseg="fx" aria-pressed="' + (S.ledgerSeg === 'fx') + '">換匯</button></div>';
+    if (S.ledgerSeg === 'fx') return h + viewFx();
+    h += '<div class="scroller" role="group" aria-label="期間">' + [['month', '本月'], ['all', '全部']].map(([k, n]) => '<button class="fchip" data-period="' + k + '" aria-pressed="' + (S.ledgerPeriod === k) + '">' + n + '</button>').join('') +
+      '<span style="width:1px;background:var(--border);flex:none"></span>' +
+      [['all', '全部模式']].concat(MODES.map(m => [m.id, m.name])).map(([k, n]) => '<button class="fchip" data-lmode="' + k + '" aria-pressed="' + (S.ledgerMode === k) + '">' + n + '</button>').join('') + '</div>';
+    const p = pending();
+    if (p.length) h += '<button class="banner" data-act="toggle-pending">' + I.alert + '<span>' + (S.pendingOnly ? '只顯示待補的 <b>' + p.length + ' 筆</b>' : '有 <b>' + p.length + ' 筆</b>刷卡待補帳單金額') + '</span><span class="go">' + (S.pendingOnly ? '顯示全部' : '只看待補') + ' ›</span></button>';
+    let list = expenses.filter(e => (S.ledgerPeriod === 'all' || ym(e.date) === ym(TODAY)) && (S.ledgerMode === 'all' || e.mode === S.ledgerMode));
+    if (S.pendingOnly) list = expenses.filter(e => e.src === '待補' && payOf(e.pay).type !== 'cash');
+    list.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+    if (!list.length) return h + '<div class="empty card"><span>這段期間還沒有支出紀錄。</span><button class="btn btn-primary" data-act="add-exp">' + I.plus + '新增第一筆支出</button></div>';
+    const days = {};
+    list.forEach(e => { (days[e.date] = days[e.date] || []).push(e); });
+    Object.keys(days).forEach(d => {
+      const t = total(days[d]);
+      h += '<section><div class="day-h num"><span>' + md(d) + ' ' + wd(d) + '</span><span>' + (t ? twd(t) : '') + '</span></div><div class="list">' + days[d].map(expRow).join('') + '</div></section>';
+    });
+    h += '<div class="fab-spacer"></div><button class="fab" data-act="add-exp">' + I.plus + '新增支出</button>';
+    return h;
+  }
+  function viewFx() {
+    let h = '<section><div class="sec-h"><h2>現金庫存</h2></div><div class="stocks">';
+    Object.keys(stock).filter(c => Math.abs(stock[c]) > 0.001).forEach(c => {
+      h += '<div class="stock' + (stock[c] < 0 ? ' neg' : '') + '"><span class="cur">' + c + ' 現金</span><span class="bal num">' + fmt(stock[c], c) + '</span><span class="avg num">平均 1 ' + c + ' = ' + avg[c].toFixed(c === 'HUF' ? 4 : 3) + ' TWD</span></div>';
+    });
+    h += '</div><p class="muted tiny" style="margin:0">用現金付外幣時，會用這裡的平均成本換算成台幣（移動平均）。</p></section>';
+    h += '<section><div class="sec-h"><h2>換匯紀錄</h2></div><div class="list">';
+    [...fx].sort((a, b) => b.date.localeCompare(a.date)).forEach(f => {
+      const card = f.card ? payOf(f.card).name : '';
+      h += '<button class="row" data-fx="' + f.id + '"><span class="caticon" style="background:var(--cat2)" aria-hidden="true">⇄</span><span class="main"><span class="t num">' + fmt(f.outAmt, f.outCur) + ' ' + f.outCur + ' → ' + fmt(f.inAmt, f.inCur) + ' ' + f.inCur + '</span>' +
+        '<span class="m"><span>' + ymd(f.date) + '</span><span>' + esc(f.place) + '</span>' + (f.method === 'atm' ? '<span class="chip warn">卡片提領 · ' + esc(card) + ' · 預估</span>' : '<span class="chip">現金換匯</span>') + '</span></span>' +
+        '<span class="amt num"><span>1 ' + f.inCur + ' =</span><b>' + f.rate.toFixed(f.inCur === 'HUF' ? 4 : 3) + '</b><span>TWD</span></span></button>';
+    });
+    h += '</div></section><div class="fab-spacer"></div><button class="fab" data-act="add-fx">' + I.plus + '新增換匯</button>';
+    return h;
+  }
+
+  /* ---------- STATS ---------- */
+  function viewStats() {
+    setTop('統計', null, '<button class="iconbtn" data-act="settings" aria-label="設定">' + I.gear + '</button>');
+    let h = '<div class="seg" role="group" aria-label="檢視">' + [['month', '月份'], ['trip', '旅程'], ['pay', '付款方式']].map(([k, n]) => '<button data-sseg="' + k + '" aria-pressed="' + (S.statSeg === k) + '">' + n + '</button>').join('') + '</div>';
+    if (S.statSeg !== 'trip') h += '<div class="scroller" role="group" aria-label="模式">' + [['all', '全部模式']].concat(MODES.map(m => [m.id, m.name])).map(([k, n]) => '<button class="fchip" data-smode="' + k + '" aria-pressed="' + (S.statMode === k) + '">' + n + '</button>').join('') + '</div>';
+    const months = [...new Set(expenses.map(e => ym(e.date)))].sort();
+    const mi = months.indexOf(S.statMonth);
+    const monthNav = '<div class="monthnav"><button data-month="' + (months[mi - 1] || '') + '" aria-label="上個月"' + (mi <= 0 ? ' disabled' : '') + '>‹</button><b>' + ymLabel(S.statMonth) + '</b><button data-month="' + (months[mi + 1] || '') + '" aria-label="下個月"' + (mi >= months.length - 1 ? ' disabled' : '') + '>›</button></div>';
+    const byMode = e => S.statMode === 'all' || e.mode === S.statMode;
+    if (S.statSeg === 'month') {
+      const list = expenses.filter(e => ym(e.date) === S.statMonth && byMode(e));
+      const cats = sumByCat(list), tot = total(list);
+      h += monthNav + '<div class="card summary"><span class="muted small">台幣總額（現金依換匯成本、刷卡依帳單金額）</span><div class="big num"><small>NT$</small>' + Math.round(tot).toLocaleString('en-US') + '</div>' + pendingNote(list) + '</div>';
+      h += '<div class="card"><div class="donut-wrap">' + donut(cats, Math.round(tot).toLocaleString('en-US'), 'NT$') + catList(cats) + '</div></div>';
+    } else if (S.statSeg === 'trip') {
+      trips.slice().reverse().forEach(t => {
+        const list = expenses.filter(e => e.trip === t.id), tot = total(list);
+        const days = Math.round((new Date(t.end) - new Date(t.start)) / 864e5) + 1;
+        const cats = sumByCat(list);
+        h += '<button class="trip" data-trip="' + t.id + '" aria-expanded="' + (S.openTrip === t.id) + '"><span class="h"><span class="name">' + esc(t.name) + '</span><span class="total num">' + twd(tot) + '</span></span>' +
+          '<span class="meta num"><span>' + ymd(t.start) + ' – ' + md(t.end) + '</span><span>' + days + ' 天</span><span>每日 ' + twd(tot / days) + '</span></span>' +
+          '<span class="legend">' + cats.slice(0, 3).map(([c, v]) => '<span><i class="dot" style="background:' + catVar(c) + '"></i>' + esc(c) + ' <span class="num">' + twd(v) + '</span></span>').join('') + '</span>' + pendingNote(list) + '</button>';
+        if (S.openTrip === t.id) h += '<div class="card"><div class="donut-wrap">' + donut(cats, Math.round(tot).toLocaleString('en-US'), 'NT$') + catList(cats) + '</div></div><div class="list">' + list.sort((a, b) => a.date.localeCompare(b.date)).map(expRow).join('') + '</div>';
+      });
+    } else {
+      h += monthNav;
+      PAYS.forEach(p => {
+        const list = expenses.filter(e => e.pay === p.id && ym(e.date) === S.statMonth && byMode(e));
+        if (!list.length) return;
+        const by = {}; list.forEach(e => { by[e.cur] = (by[e.cur] || 0) + e.amt; });
+        const billed = list.filter(e => e.src === '帳單' || (e.cur === 'TWD' && p.type !== 'cash')).reduce((s, e) => s + e.twd, 0);
+        const pend = list.filter(e => e.src === '待補');
+        const open = S.openPay === p.id;
+        h += '<div class="list"><button class="row pay" data-pay="' + p.id + '" aria-expanded="' + open + '" style="align-items:stretch"><span class="h"><b>' + esc(p.name) + '</b><span class="muted tiny">' + list.length + ' 筆 ' + (open ? '▴' : '▾') + '</span></span>' +
+          '<span class="kv num"><span>原幣小計</span><span>' + Object.entries(by).map(([c, a]) => fmt(a, c) + ' ' + c).join(' ／ ') + '</span></span>' +
+          (p.type === 'cash' ? '<span class="kv num"><span>換算台幣</span><span>' + twd(total(list)) + '</span></span>'
+            : '<span class="kv num"><span>已補帳單台幣</span><span>' + twd(billed) + '</span></span>' + (pend.length ? '<span class="kv"><span>待補</span><span class="chip warn">' + pend.length + ' 筆</span></span>' : '')) + '</button>';
+        if (open) {
+          list.sort((a, b) => a.date.localeCompare(b.date)).forEach(e => {
+            if (e.src === '待補') h += '<div class="fill"><span class="main"><b>' + esc(e.name) + '</b><br><span class="muted tiny num">' + md(e.date) + ' · ' + fmt(e.amt, e.cur) + ' ' + e.cur + '</span></span><input inputmode="numeric" id="bill-' + e.id + '" placeholder="NT$" aria-label="帳單台幣金額"><button data-bill="' + e.id + '">補上</button></div>';
+            else h += '<div class="fill"><span class="main">' + esc(e.name) + '<br><span class="muted tiny num">' + md(e.date) + ' · ' + fmt(e.amt, e.cur) + ' ' + e.cur + '</span></span><span class="num">' + (e.twd != null ? twd(e.twd) : '') + '</span></div>';
+          });
+        }
+        h += '</div>';
+      });
+    }
+    h += '<button class="btn btn-secondary btn-block" data-act="export">匯出 Excel</button>';
+    return h;
+  }
+
+  /* ---------- SHEETS ---------- */
+  function openSheet(html, cls) {
+    const panel = $('#sheet-root .panel');
+    if (panel) { panel.className = 'panel ' + (cls || ''); panel.innerHTML = '<div class="grab"></div>' + html; return; }
+    $('#sheet-root').innerHTML = '<div class="sheet" data-scrim><div class="panel ' + (cls || '') + '" role="dialog" aria-modal="true">' + '<div class="grab"></div>' + html + '</div></div>';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSheet() { $('#sheet-root').innerHTML = ''; document.body.style.overflow = ''; F = null; }
+
+  let F = null; // expense form state
+  function openExpForm(id) {
+    const e = id ? expenses.find(x => x.id === id) : null;
+    F = e ? Object.assign({}, e, { amtStr: String(e.amt), billStr: e.bill ? String(e.bill) : '' }) :
+      { id: null, mode: S.lastMode, amtStr: '', cur: S.lastCur, pay: S.lastPay, cat: '', trip: S.lastMode === 'travel' ? 'vie' : null, name: '', date: TODAY, place: '', note: '', billStr: '' };
+    if (!F.cat) F.cat = CATS[F.mode][0];
+    F.errors = {}; F.confirmDel = false;
+    drawExpForm();
+  }
+  function cashPreview() {
+    const p = payOf(F.pay);
+    const amt = parseFloat(F.amtStr);
+    let preview = '';
+    if (p.type === 'cash' && F.cur !== 'TWD') {
+      if (avg[F.cur]) {
+        const left = (stock[F.cur] || 0) - (amt || 0) + (F.id ? (expenses.find(x => x.id === F.id).amt || 0) : 0);
+        preview = '<div class="hint num">' + (amt > 0 ? '≈ ' + twd(amt * avg[F.cur]) + '　' : '') + '成本 1 ' + F.cur + ' = ' + avg[F.cur].toFixed(F.cur === 'HUF' ? 4 : 3) + ' TWD · 付款後剩 ' + fmt(left, F.cur) + ' ' + F.cur + '</div>';
+        if (left < 0) preview += '<div class="hint warn">' + F.cur + ' 現金庫存不足，請補記換匯。</div>';
+      } else preview = '<div class="hint warn">還沒有 ' + F.cur + ' 的換匯紀錄，台幣金額會先標為待補。</div>';
+    }
+    return preview;
+  }
+  function drawExpForm(focusAmt) {
+    const t = F.mode === 'travel';
+    const p = payOf(F.pay);
+    const preview = '<div id="f-preview" style="display:flex;flex-direction:column;gap:8px">' + cashPreview() + '</div>';
+    const opt = (key, val, label) => '<button type="button" class="opt" data-f="' + key + '" data-v="' + esc(val) + '" aria-pressed="' + (F[key] === val) + '">' + esc(label) + '</button>';
+    const err = k => F.errors[k] ? '<span class="err">' + I.alert.replace('<svg', '<svg width="14" height="14"') + F.errors[k] + '</span>' : '';
+    let h = '<div class="sheet-h"><button type="button" data-act="close">取消</button><h2 style="text-align:center">' + (F.id ? '編輯支出' : '新增支出') + '</h2><button type="button" data-act="save-exp" style="font-weight:600;color:' + (t ? 'var(--accent-travel)' : 'var(--primary)') + '">儲存</button></div>';
+    h += '<div class="seg' + (t ? ' travel' : '') + '" role="group" aria-label="記帳模式">' + MODES.map(m => '<button type="button" data-f="mode" data-v="' + m.id + '" aria-pressed="' + (F.mode === m.id) + '">' + m.name + '</button>').join('') + '</div>';
+    h += '<div class="field' + (F.errors.amt ? ' invalid' : '') + '"><label for="f-amt">金額</label><input id="f-amt" class="amount-in" inputmode="decimal" placeholder="0" value="' + esc(F.amtStr) + '" autocomplete="off">' + err('amt') +
+      '<div class="opts" role="group" aria-label="幣別">' + CURS.map(c => opt('cur', c, c)).join('') + '</div></div>';
+    h += '<div class="field"><span class="lab">付款方式</span><div class="opts">' + PAYS.map(x => opt('pay', x.id, x.name)).join('') + '</div></div>';
+    h += preview;
+    h += '<div class="field"><span class="lab">類別</span><div class="opts">' + CATS[F.mode].map(c => opt('cat', c, c)).join('') + '</div></div>';
+    if (t) h += '<div class="field"><span class="lab">旅程</span><div class="opts">' + trips.slice().reverse().map(x => opt('trip', x.id, x.name)).join('') + '<button type="button" class="opt" data-act="new-trip">＋ 新旅程</button></div>' + err('trip') + '</div>';
+    h += '<div class="field"><label for="f-name">項目名稱</label><input id="f-name" type="text" placeholder="例如：午餐、火車票" value="' + esc(F.name) + '"></div>';
+    h += '<div class="two"><div class="field"><label for="f-date">日期</label><input id="f-date" type="date" value="' + esc(F.date) + '"></div><div class="field"><label for="f-place">地點</label><input id="f-place" type="text" placeholder="城市或店家" value="' + esc(F.place) + '"></div></div>';
+    h += '<div class="field"><label for="f-note">備註</label><textarea id="f-note" placeholder="補充資訊">' + esc(F.note) + '</textarea></div>';
+    if (p.type !== 'cash' && F.cur !== 'TWD') h += '<div class="field"><label for="f-bill">帳單台幣金額</label><input id="f-bill" inputmode="numeric" placeholder="帳單出來後再補" value="' + esc(F.billStr) + '"></div>';
+    h += '<button type="button" class="btn btn-primary btn-block" data-act="save-exp">儲存</button>';
+    if (F.id) {
+      h += F.confirmDel ? '<div class="confirm"><span>確定要刪除這筆資料嗎？此操作無法直接復原。</span><div class="actions"><button type="button" class="btn btn-secondary" data-act="del-cancel">取消</button><button type="button" class="btn btn-danger" data-act="del-exp">刪除</button></div></div>'
+        : '<button type="button" class="btn btn-danger btn-block" data-act="del-ask">刪除這筆</button>';
+    }
+    const scroll = $('#sheet-root .panel') ? $('#sheet-root .panel').scrollTop : 0;
+    openSheet(h, t ? 'form-travel' : '');
+    $('#sheet-root .panel').scrollTop = scroll;
+    if (focusAmt) { const a = $('#f-amt'); a.focus(); }
+  }
+  function readExpInputs() {
+    if (!F) return;
+    const g = id => { const el = $('#' + id); return el ? el.value : undefined; };
+    F.amtStr = g('f-amt') ?? F.amtStr; F.name = g('f-name') ?? F.name; F.date = g('f-date') ?? F.date;
+    F.place = g('f-place') ?? F.place; F.note = g('f-note') ?? F.note; if (g('f-bill') !== undefined) F.billStr = g('f-bill');
+  }
+  function saveExp() {
+    readExpInputs();
+    F.errors = {};
+    const amt = parseFloat(F.amtStr);
+    if (!(amt > 0)) F.errors.amt = '請輸入有效金額，且金額必須大於 0。';
+    if (F.mode === 'travel' && !F.trip) F.errors.trip = '旅遊模式請選擇或新增旅程。';
+    if (Object.keys(F.errors).length) { drawExpForm(); return; }
+    const bill = parseFloat(F.billStr);
+    const rec = { date: F.date || TODAY, mode: F.mode, cat: F.cat, amt, cur: F.cur, pay: F.pay, name: F.name.trim(), trip: F.mode === 'travel' ? F.trip : null, place: F.place, note: F.note, bill: bill > 0 && payOf(F.pay).type !== 'cash' ? bill : null };
+    if (F.id) Object.assign(expenses.find(x => x.id === F.id), rec);
+    else expenses.push(Object.assign({ id: 'e' + (seq++) }, rec));
+    S.lastMode = F.mode; S.lastCur = F.cur; S.lastPay = F.pay;
+    closeSheet();
+    if (S.tab === 'home') S.tab = 'ledger';
+    render();
+    toast('已成功儲存。');
+  }
+
+  let FX = null;
+  function openFxForm() {
+    FX = { method: 'cash', card: 'cube', outAmt: '', outCur: 'TWD', inAmt: '', inCur: 'CZK', date: TODAY, place: '' };
+    drawFx();
+  }
+  function fxRate() {
+    const o = parseFloat(FX.outAmt), i = parseFloat(FX.inAmt);
+    if (!(o > 0 && i > 0)) return '';
+    const cost = FX.outCur === 'TWD' ? o : o * (avg[FX.outCur] || 0);
+    return '<div class="hint num">匯率 1 ' + FX.inCur + ' = ' + (cost / i).toFixed(4) + ' TWD' + (FX.outCur !== 'TWD' ? '（以 ' + FX.outCur + ' 平均成本換算）' : '') + '　·　1 ' + FX.outCur + ' = ' + (i / o).toFixed(3) + ' ' + FX.inCur + '</div>';
+  }
+  function drawFx() {
+    const opt = (key, val, label) => '<button type="button" class="opt" data-x="' + key + '" data-v="' + esc(val) + '" aria-pressed="' + (FX[key] === val) + '">' + esc(label) + '</button>';
+    const rate = '<div id="x-rate">' + fxRate() + '</div>';
+    let h = '<div class="sheet-h"><button type="button" data-act="close">取消</button><h2 style="text-align:center">新增換匯</h2><button type="button" data-act="save-fx" style="font-weight:600">儲存</button></div>';
+    h += '<div class="seg" role="group" aria-label="方式"><button type="button" data-x="method" data-v="cash" aria-pressed="' + (FX.method === 'cash') + '">現金換匯</button><button type="button" data-x="method" data-v="atm" aria-pressed="' + (FX.method === 'atm') + '">卡片提領</button></div>';
+    if (FX.method === 'atm') h += '<div class="field"><span class="lab">提領卡片</span><div class="opts">' + PAYS.filter(p => p.type !== 'cash').map(p => opt('card', p.id, p.name)).join('') + '</div><div class="hint">換出金額先填當下顯示的台幣，帳單出來後再改成實際金額。</div></div>';
+    h += '<div class="field"><label for="x-out">換出</label><input id="x-out" inputmode="decimal" placeholder="例如 10000" value="' + esc(FX.outAmt) + '"><div class="opts">' + ['TWD', 'EUR', 'CZK'].map(c => opt('outCur', c, c)).join('') + '</div></div>';
+    h += '<div class="field"><label for="x-in">換入</label><input id="x-in" inputmode="decimal" placeholder="例如 7150" value="' + esc(FX.inAmt) + '"><div class="opts">' + CURS.filter(c => c !== 'TWD').map(c => opt('inCur', c, c)).join('') + '</div></div>';
+    h += rate;
+    h += '<div class="two"><div class="field"><label for="x-date">日期</label><input id="x-date" type="date" value="' + esc(FX.date) + '"></div><div class="field"><label for="x-place">地點</label><input id="x-place" type="text" placeholder="例如 台灣銀行" value="' + esc(FX.place) + '"></div></div>';
+    h += '<button type="button" class="btn btn-primary btn-block" data-act="save-fx">儲存</button>';
+    openSheet(h);
+  }
+  function readFx() { ['out', 'in', 'date', 'place'].forEach(k => { const el = $('#x-' + k); if (el) FX[k === 'out' ? 'outAmt' : k === 'in' ? 'inAmt' : k] = el.value; }); }
+
+  function openRes(id) {
+    const r = resources.find(x => x.id === id);
+    let h = '<div class="sheet-h"><button type="button" data-act="close">關閉</button><span style="flex:1"></span><button type="button" data-act="demo" data-msg="樣稿：這裡會開啟編輯表單">編輯</button></div>';
+    h += '<div class="detail" style="display:flex;flex-direction:column;gap:12px"><div class="res" style="border:0;padding:0;background:none"><span class="ticon">' + TYPE_ICON[r.type] + '</span><span class="body"><span class="muted small">' + r.type + ' · 更新於 ' + ymd(r.updated) + '</span></span></div><h3>' + esc(r.title) + '</h3>' +
+      '<div class="chips" style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ' + (r.stage === '旅遊' ? 'travel' : 'green') + '">' + r.stage + '</span>' + r.tags.map(t => '<span class="chip">#' + esc(t) + '</span>').join('') + '</div>' +
+      (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url) + '</a>' : '') +
+      '<div class="content">' + esc(r.content) + '</div>' + (r.img ? '<div class="shot">範例截圖</div>' : '') +
+      '<div class="setrow card"><span>釘選到首頁</span><span class="chip ' + (r.pinned ? 'green' : '') + '">' + (r.pinned ? '已釘選' : '未釘選') + '</span></div>' +
+      '<button type="button" class="btn btn-danger btn-block" data-act="demo" data-msg="樣稿：刪除前會再確認一次">刪除資源</button></div>';
+    openSheet(h);
+  }
+  function openResForm() {
+    let h = '<div class="sheet-h"><button type="button" data-act="close">取消</button><h2 style="text-align:center">新增資源</h2><button type="button" data-act="save-res" style="font-weight:600">儲存</button></div>';
+    h += '<div class="field" id="rf-title-f"><label for="rf-title">標題（必填）</label><input id="rf-title" type="text" placeholder="例如：移民局預約方式"></div>';
+    h += '<div class="field"><span class="lab">類型</span><div class="opts" data-group="rtype">' + ['筆記', 'Dcard', '網站', '截圖', '文件'].map((t, i) => '<button type="button" class="opt" data-pick="rtype" aria-pressed="' + (i === 0) + '">' + t + '</button>').join('') + '</div></div>';
+    h += '<div class="field"><span class="lab">階段</span><div class="opts">' + ['出發前', '抵達後', '旅遊', '不分'].map((t, i) => '<button type="button" class="opt" data-pick="rstage" aria-pressed="' + (i === 3) + '">' + t + '</button>').join('') + '</div></div>';
+    h += '<div class="field"><label for="rf-url">網址</label><input id="rf-url" type="text" inputmode="url" placeholder="https://"></div>';
+    h += '<div class="field"><label for="rf-content">內容</label><textarea id="rf-content" placeholder="摘要、心得，或貼上文章全文"></textarea></div>';
+    h += '<div class="field"><label for="rf-tags">標籤</label><input id="rf-tags" type="text" placeholder="以空白分隔，例如：居留 移民局"></div>';
+    h += '<div class="field"><span class="lab">圖片</span><button type="button" class="btn btn-secondary" data-act="demo" data-msg="樣稿：這裡會開啟相簿（最多 5 張）">' + I.img + '從相簿加入</button></div>';
+    h += '<div class="setrow card"><span>釘選到首頁</span><button type="button" class="opt" data-pick="rpin" aria-pressed="false">關</button></div>';
+    h += '<button type="button" class="btn btn-primary btn-block" data-act="save-res">儲存</button>';
+    openSheet(h);
+  }
+  function saveRes() {
+    const title = $('#rf-title').value.trim();
+    const f = $('#rf-title-f');
+    if (!title) {
+      f.classList.add('invalid');
+      if (!f.querySelector('.err')) f.insertAdjacentHTML('beforeend', '<span class="err">' + I.alert.replace('<svg', '<svg width="14" height="14"') + '請完成此欄位。</span>');
+      $('#rf-title').focus();
+      return;
+    }
+    const pick = g => { const b = document.querySelector('[data-pick="' + g + '"][aria-pressed="true"]'); return b ? b.textContent : ''; };
+    const url = $('#rf-url').value.trim();
+    resources.push({ id: 'r' + (seq++), title, type: pick('rtype'), stage: pick('rstage'), url, tags: $('#rf-tags').value.trim().split(/\s+/).filter(Boolean), content: $('#rf-content').value, pinned: pick('rpin') === '開' && !!url, short: title.slice(0, 2), updated: TODAY });
+    closeSheet(); S.tab = 'lib'; S.q = ''; S.stage = '全部'; S.rtype = '全部'; render(); toast('已成功儲存。');
+  }
+  function openSettings() {
+    const cur = document.documentElement.getAttribute('data-theme') || 'system';
+    const g = (title, rows) => '<div class="setgroup"><h3>' + title + '</h3><div class="list">' + rows.map(r => '<button type="button" class="row" data-act="demo" data-msg="樣稿：' + r[0] + '"><span class="main"><span class="t">' + r[0] + '</span>' + (r[1] ? '<span class="m">' + r[1] + '</span>' : '') + '</span><span class="muted">›</span></button>').join('') + '</div></div>';
+    let h = '<div class="sheet-h"><h2>設定</h2><button type="button" data-act="close">完成</button></div>';
+    h += '<div class="setgroup"><h3>外觀</h3><div class="seg" role="group" aria-label="主題">' + [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']].map(([k, n]) => '<button type="button" data-theme-set="' + k + '" aria-pressed="' + (cur === k) + '">' + n + '</button>').join('') + '</div></div>';
+    h += g('記帳', [['付款方式管理', '5 種 · 現金、Cube、中信簽帳卡、uniopen、Mega'], ['類別管理', '依出發前／日常／旅遊分組'], ['旅程管理', '2 個旅程']]);
+    h += g('資源', [['常用連結排序', '5 個釘選'], ['標籤管理', '改名、合併、刪除']]);
+    h += g('生存手冊', [['立即同步', '上次同步 2027/03/10 21:04 · 30 篇'], ['來源清單', '捷克交換學生生存手冊']]);
+    h += g('資料', [['匯出 Excel', '上次匯出 2027/02/01'], ['完整備份', '上次備份 2027/03/10'], ['還原備份', ''], ['匯入資源 CSV', ''], ['下載 CSV 範本', '']]);
+    h += '<p class="muted tiny" style="margin:0;text-align:center">資料僅存於這支手機，移除 App 前請先備份。<br>CzechMate 1.1 · UI 樣稿</p>';
+    openSheet(h);
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest('button, a, [data-scrim]');
+    if (!b) return;
+    if (b.hasAttribute('data-scrim')) { if (ev.target === b) closeSheet(); return; }
+    const d = b.dataset;
+    if (d.tab) return go(d.tab);
+    if (d.goto) return go(d.goto);
+    if (d.open) return toast('會開啟 ' + d.open.replace('https://', ''));
+    if (d.res) return openRes(d.res);
+    if (d.edit) return openExpForm(d.edit);
+    if (d.fx) return toast('樣稿：這裡會開啟換匯編輯');
+    if (d.stage) { S.stage = d.stage; return render(); }
+    if (d.rtype) { S.rtype = d.rtype; return render(); }
+    if (d.lseg) { S.ledgerSeg = d.lseg; return render(); }
+    if (d.period) { S.ledgerPeriod = d.period; S.pendingOnly = false; return render(); }
+    if (d.lmode) { S.ledgerMode = d.lmode; S.pendingOnly = false; return render(); }
+    if (d.sseg) { S.statSeg = d.sseg; return render(); }
+    if (d.smode) { S.statMode = d.smode; return render(); }
+    if (d.month !== undefined && d.month) { S.statMonth = d.month; return render(); }
+    if (d.trip) { S.openTrip = S.openTrip === d.trip ? null : d.trip; return render(); }
+    if (d.pay) { S.openPay = S.openPay === d.pay ? null : d.pay; return render(); }
+    if (d.bill) {
+      const v = parseFloat($('#bill-' + d.bill).value);
+      if (!(v > 0)) return toast('請輸入有效金額，且金額必須大於 0。', false);
+      expenses.find(e => e.id === d.bill).bill = v; render(); return toast('已補上帳單金額。');
+    }
+    if (d.themeSet) {
+      if (d.themeSet === 'system') document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme', d.themeSet);
+      try { localStorage.setItem('cm-theme', d.themeSet); } catch (e) {}
+      return openSettings();
+    }
+    if (d.f && F) {
+      readExpInputs();
+      const prevMode = F.mode;
+      F[d.f] = d.v;
+      if (d.f === 'mode' && prevMode !== d.v) { F.cat = CATS[d.v][0]; F.trip = d.v === 'travel' ? (F.trip || 'vie') : null; }
+      return drawExpForm();
+    }
+    if (d.x && FX) { readFx(); FX[d.x] = d.v; return drawFx(); }
+    if (d.pick) {
+      if (d.pick === 'rpin') { const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on); b.textContent = on ? '開' : '關'; return; }
+      document.querySelectorAll('[data-pick="' + d.pick + '"]').forEach(x => x.setAttribute('aria-pressed', x === b));
+      return;
+    }
+    switch (d.act) {
+      case 'settings': return openSettings();
+      case 'close': return closeSheet();
+      case 'add-exp': return openExpForm(null);
+      case 'save-exp': return saveExp();
+      case 'del-ask': readExpInputs(); F.confirmDel = true; return drawExpForm();
+      case 'del-cancel': F.confirmDel = false; return drawExpForm();
+      case 'del-exp': { const i = expenses.findIndex(x => x.id === F.id); expenses.splice(i, 1); closeSheet(); render(); return toast('已刪除。'); }
+      case 'new-trip': return toast('樣稿：這裡會輸入旅程名稱與日期');
+      case 'add-fx': return openFxForm();
+      case 'save-fx': {
+        readFx();
+        const o = parseFloat(FX.outAmt), i = parseFloat(FX.inAmt);
+        if (!(o > 0 && i > 0)) return toast('請輸入有效金額，且金額必須大於 0。', false);
+        if (FX.outCur === FX.inCur) return toast('換出與換入的幣別不能相同。', false);
+        fx.push({ id: 'f' + (seq++), date: FX.date || TODAY, method: FX.method, card: FX.method === 'atm' ? FX.card : null, outAmt: o, outCur: FX.outCur, inAmt: i, inCur: FX.inCur, place: FX.place, note: '' });
+        FX = null; closeSheet(); render(); return toast('已成功儲存，現金成本已重算。');
+      }
+      case 'add-res': return openResForm();
+      case 'save-res': return saveRes();
+      case 'pending': S.tab = 'ledger'; S.ledgerSeg = 'exp'; S.pendingOnly = true; render(); return window.scrollTo(0, 0);
+      case 'toggle-pending': S.pendingOnly = !S.pendingOnly; return render();
+      case 'export': return toast('樣稿：會產生 CzechMate_記帳_20270315.xlsx');
+      case 'pins': return toast('樣稿：這裡可以調整常用連結順序');
+      case 'clearq': S.q = ''; render(); return $('#q').focus();
+      case 'clearall': S.q = ''; S.stage = '全部'; S.rtype = '全部'; return render();
+      case 'demo': return toast(d.msg || '樣稿');
+    }
+  });
+  document.addEventListener('compositionend', ev => {
+    if (ev.target.id === 'q') ev.target.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  document.addEventListener('input', ev => {
+    const t = ev.target;
+    if (ev.isComposing) return;
+    if (t.id === 'q') {
+      S.q = t.value;
+      const pos = t.selectionStart;
+      render();
+      const n = $('#q'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {}
+    } else if (t.id === 'f-amt' && F) {
+      F.amtStr = t.value;
+      $('#f-preview').innerHTML = cashPreview();
+    } else if ((t.id === 'x-out' || t.id === 'x-in') && FX) {
+      readFx();
+      $('#x-rate').innerHTML = fxRate();
+    }
+  });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#sheet-root').innerHTML) closeSheet(); });
+
+  try { const th = localStorage.getItem('cm-theme'); if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); } catch (e) {}
+  render();
+})();
+</script>
+</body>
+</html>
