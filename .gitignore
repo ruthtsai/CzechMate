@@ -6,3 +6,8 @@ dev-dist/
 # Never commit personal data exports
 *.xlsx
 CzechMate_備份_*.json
+
+# Specs stay on this computer only
+CzechMate_UI_Spec.md
+CzechMate_Requirements_Spec.md
+*_Spec.md

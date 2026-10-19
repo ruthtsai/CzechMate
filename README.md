@@ -4,7 +4,6 @@
 
 - App：https://ruthtsai.github.io/CzechMate/ （用 iPhone Safari 開啟後「加入主畫面」）
 - UI 樣稿（範例資料）：https://ruthtsai.github.io/CzechMate/mockup/
-- 規格：[UI 規格書](CzechMate_UI_Spec.md)、[需求規格書](CzechMate_Requirements_Spec.md)
 
 個人資料只存在手機本機，不會放進這個 repo。
 
