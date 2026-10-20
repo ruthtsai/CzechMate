@@ -168,12 +168,12 @@ describe('Apps Script', () => {
 
 describe('image folder path', () => {
   it('walks the configured path from My Drive, creating missing folders once', () => {
-    const env = makeEnv('s', '我的雲端硬碟/2026_CTU交換學生計畫/CzechMate/CzechMate 圖片');
-    expect(env.post({ action: 'ping' }).imageFolder).toBe('2026_CTU交換學生計畫/CzechMate/CzechMate 圖片');
+    const env = makeEnv('s', '我的雲端硬碟/交換計畫/CzechMate/CzechMate 圖片');
+    expect(env.post({ action: 'ping' }).imageFolder).toBe('交換計畫/CzechMate/CzechMate 圖片');
     env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'AAA' });
     env.post({ action: 'uploadImage', name: 'b.jpg', mime: 'image/jpeg', base64: 'BBB' });
-    expect(env.made).toEqual(['2026_CTU交換學生計畫', '2026_CTU交換學生計畫/CzechMate', '2026_CTU交換學生計畫/CzechMate/CzechMate 圖片']);
-    expect(env.files.map(f => f.folder)).toEqual(['2026_CTU交換學生計畫/CzechMate/CzechMate 圖片', '2026_CTU交換學生計畫/CzechMate/CzechMate 圖片']);
+    expect(env.made).toEqual(['交換計畫', '交換計畫/CzechMate', '交換計畫/CzechMate/CzechMate 圖片']);
+    expect(env.files.map(f => f.folder)).toEqual(['交換計畫/CzechMate/CzechMate 圖片', '交換計畫/CzechMate/CzechMate 圖片']);
     expect(env.post({ action: 'getImages', names: ['b.jpg'], known: {} }).images[0].base64).toBe('b64:decoded:BBB');
   });
 
