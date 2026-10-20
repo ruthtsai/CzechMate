@@ -8,7 +8,13 @@ const md = new MarkdownIt({ html: false, linkify: true, breaks: true, typographe
 const defaultLink = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const t = tokens[idx];
-  const href = t.attrGet('href') ?? '';
+  let href = t.attrGet('href') ?? '';
+  // Site-relative links (HackMD's `/@user/note`) point at the note's own site, not at this app.
+  const base = (env as { base?: string } | undefined)?.base;
+  if (base && href.startsWith('/') && !href.startsWith('//')) {
+    href = new URL(href, base).toString();
+    t.attrSet('href', href);
+  }
   // In-page anchors stay; everything else opens outside the app.
   if (!href.startsWith('#')) {
     t.attrSet('target', '_blank');
@@ -33,16 +39,18 @@ function cleanHackmd(src: string): string {
     .replace(/\[color=[^\]]*\]/gi, '')
     .replace(/\{%\s*(youtube|vimeo|gist|slideshare|speakerdeck|pdf|hackmd)[^%]*%\}/gi, '')
     .replace(/^\s*\[TOC\]\s*$/gim, '')
+    .replace(/(!\[[^\]]*\]\(\S+?)\s+=[\d.%]*x?[\d.%]*\)/g, '$1)') // HackMD image size: ![](url =50%x)
     .replace(/^---\s*\n(?:[\w-]+:.*\n)+---\s*\n/, ''); // front matter
 }
 
-export function renderMarkdown(src: string): string {
+/** `base` resolves site-relative links, e.g. `https://hackmd.io` for HackMD notes. */
+export function renderMarkdown(src: string, base?: string): string {
   const lines = cleanHackmd(src).split('\n');
   const out: string[] = [];
   let buf: string[] = [];
   let kind: string | null = null;
   const flush = () => {
-    const html = md.render(buf.join('\n'));
+    const html = md.render(buf.join('\n'), { base });
     out.push(kind ? `<div class="callout callout-${kind}">${html}</div>` : html);
     buf = [];
   };
@@ -59,6 +67,18 @@ export function renderMarkdown(src: string): string {
   }
   flush();
   return out.join('');
+}
+
+/** Inline markup only (links, emphasis, code); for single-line text such as headings, where "2. …" is not a list. */
+export function stripInline(src: string): string {
+  return src
+    .replace(/\[color=[^\]]*\]/gi, '')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|~~|==)(.+?)\1/g, '$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** Plain text for previews and search: drops Markdown and HackMD markup, keeps words and link text. */

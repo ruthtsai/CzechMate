@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { db, getSetting, setSetting } from '../../db';
 import { MODE_SHORT, MODES, type Theme } from '../../domain/constants';
 import { backupFileName, createBackup, parseBackup, restoreBackup, RestoreError, type BackupFile } from '../../io/backup';
-import { shareOrDownload } from '../../io/share';
+import { fileSize, shareOrDownload } from '../../io/share';
 import { applyTheme } from '../../theme';
 import { IconShare } from '../../components/Icons';
 import { Seg, Sheet, useToast } from '../../components/ui';
@@ -39,6 +39,7 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null);
   const [busy, setBusy] = useState(false);
+  const [readyBackup, setReadyBackup] = useState<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const sheetName = useLiveQuery(() => getSetting<string>('gsSheetName', ''), [], '');
   const hbSyncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
@@ -87,17 +88,25 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
   }
 
 
+  async function handOver(file: File) {
+    const r = await shareOrDownload(file);
+    if (r === 'needs-tap') {
+      setReadyBackup(file);
+      return;
+    }
+    setReadyBackup(null);
+    if (r === 'cancelled') return toast('已取消，備份檔沒有儲存。', { ok: false });
+    await setSetting('lastBackupAt', new Date().toISOString());
+    toast('已產生備份檔，請存到「檔案」App 或 iCloud 雲碟。');
+  }
+
   async function backup() {
     setBusy(true);
     try {
       const json = JSON.stringify(await createBackup(db));
-      const r = await shareOrDownload(new File([json], backupFileName(), { type: 'application/json' }));
-      if (r !== 'cancelled') {
-        await setSetting('lastBackupAt', new Date().toISOString());
-        toast('已產生備份檔，請存到「檔案」App 或 iCloud 雲碟。');
-      }
-    } catch {
-      toast('暫時無法備份，請稍後再試。', { ok: false });
+      await handOver(new File([json], backupFileName(), { type: 'application/json' }));
+    } catch (e) {
+      toast(`暫時無法備份：${(e as Error)?.message ?? '未知錯誤'}`, { ok: false });
     } finally {
       setBusy(false);
     }
@@ -298,10 +307,19 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
             <button type="button" className="row" onClick={backup} disabled={busy}>
               <span className="main">
                 <span className="t">完整備份</span>
-                <span className="m">上次備份：{stamp(lastBackup)}</span>
+                <span className="m">{busy ? '正在產生備份…' : `上次備份：${stamp(lastBackup)}`}</span>
               </span>
               <IconShare width={20} height={20} className="end" />
             </button>
+            {readyBackup && (
+              <button type="button" className="row" onClick={() => handOver(readyBackup)} style={{ background: 'var(--warning-surface)' }}>
+                <span className="main">
+                  <span className="t">備份檔已準備好（{fileSize(readyBackup)}），按這裡儲存</span>
+                  <span className="m">iPhone 需要再按一次才能打開分享選單</span>
+                </span>
+                <IconShare width={20} height={20} className="end" />
+              </button>
+            )}
             <button type="button" className="row" onClick={() => fileInput.current?.click()}>
               <span className="main">
                 <span className="t">還原備份</span>

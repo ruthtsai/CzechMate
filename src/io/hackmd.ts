@@ -1,5 +1,5 @@
 import type { HandbookSection } from '../db/schema';
-import { stripMarkdown } from '../domain/markdown';
+import { stripInline, stripMarkdown } from '../domain/markdown';
 
 // HackMD survival handbook and personal notes: requirements spec 6.4 and 6.4.1.
 // Public notes serve their Markdown at `<note url>/download` with CORS enabled, so no server is needed.
@@ -70,7 +70,7 @@ export function splitSections(markdown: string, page: TocEntry, sourceId: string
   }
   const slug = page.url.split('/').pop() ?? 'page';
   return parts
-    .map((p, i) => ({ heading: stripMarkdown(p.heading), i, text: stripMarkdown(p.lines.join('\n')) }))
+    .map((p, i) => ({ heading: stripInline(p.heading), i, text: stripMarkdown(p.lines.join('\n')) }))
     // Tiny sections carry no content; a short preamble is usually just a "back to the book" banner.
     .filter(p => p.text.replace(/\s/g, '').length >= (p.i === 0 && parts.length > 1 ? 40 : 10))
     .map(p => ({
@@ -109,6 +109,8 @@ export interface BookSyncResult {
   sections: HandbookSection[];
   pages: TocEntry[];
   failed: TocEntry[];
+  /** Full Markdown of each downloaded page, for reading inside the app. */
+  markdown: { url: string; markdown: string }[];
 }
 
 /** Downloads a book (or a single note) and splits every page into sections. */
@@ -123,15 +125,18 @@ export async function syncBook(
       : [{ title: source.title, url: canonicalNoteUrl(source.url)! }];
   const sections: HandbookSection[] = [];
   const failed: TocEntry[] = [];
+  const markdown: BookSyncResult['markdown'] = [];
   for (let i = 0; i < pages.length; i++) {
     opts.onProgress?.(i, pages.length);
     try {
-      sections.push(...splitSections(await fetchMarkdown(pages[i].url, fetchImpl), pages[i], source.id, i));
+      const md = await fetchMarkdown(pages[i].url, fetchImpl);
+      markdown.push({ url: pages[i].url, markdown: md });
+      sections.push(...splitSections(md, pages[i], source.id, i));
     } catch {
       failed.push(pages[i]);
     }
     if (opts.delayMs && i < pages.length - 1) await new Promise(r => setTimeout(r, opts.delayMs));
   }
   opts.onProgress?.(pages.length, pages.length);
-  return { sections, pages, failed };
+  return { sections, pages, failed, markdown };
 }

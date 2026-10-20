@@ -13,6 +13,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, useToast } from '../../components/ui';
 import { Highlighted, ResourceCard } from './parts';
 import { useResourceEditors } from './ResourceEditors';
+import { useHandbookReader } from './HandbookReader';
 
 interface LibFilters { q: string; stage: 'all' | Stage; type: 'all' | ResourceType; tag: string | null }
 // Kept for the session so switching tabs keeps the search.
@@ -46,6 +47,8 @@ export function LibraryPage() {
     );
     return searchResources(filtered, f.q, r => (isHackmdNote(r.url) ? notes.get(canonicalNoteUrl(r.url)!) ?? '' : ''));
   }, [resources, f, notes]);
+  const pageCount = useMemo(() => new Set(sections.map(x => x.pageUrl)).size, [sections]);
+  const openReader = useHandbookReader();
   const handbookHits = useMemo(() => searchSections(sections, f.q).slice(0, 30), [sections, f.q]);
 
   async function syncNow() {
@@ -104,7 +107,7 @@ export function LibraryPage() {
           ) : syncedAt ? (
             <>
               <IconCheck />
-              <span>生存手冊 {sections.length} 段 · {slashDate(syncedAt.slice(0, 10))}</span>
+              <span>生存手冊已同步 · {slashDate(syncedAt.slice(0, 10))}</span>
               <button type="button" onClick={syncNow}>重新同步</button>
             </>
           ) : (
@@ -114,6 +117,17 @@ export function LibraryPage() {
             </>
           )}
         </div>
+
+        {!terms.length && sections.length > 0 && (
+          <button type="button" className="res" onClick={() => openReader()}>
+            <span className="ticon book"><IconBook /></span>
+            <span className="body">
+              <span className="t">捷克交換學生生存手冊</span>
+              <span className="p">{pageCount} 篇，可離線閱讀。搜尋時也會一起找手冊的內容。</span>
+            </span>
+            <span className="end muted" style={{ alignSelf: 'center' }}>›</span>
+          </button>
+        )}
 
         {resources === undefined ? (
           <p className="muted small">載入中…</p>
@@ -141,13 +155,13 @@ export function LibraryPage() {
               <p className="muted small" style={{ margin: 0 }}>{sections.length ? '手冊裡沒有相符的段落。' : '同步生存手冊後，這裡會一起顯示手冊的搜尋結果。'}</p>
             ) : (
               handbookHits.map(h => (
-                <a key={h.id} className="res" href={h.anchor ? `${h.pageUrl}#${h.anchor}` : h.pageUrl} target="_blank" rel="noopener noreferrer">
+                <button type="button" key={h.id} className="res" onClick={() => openReader({ pageUrl: h.pageUrl, heading: h.heading })}>
                   <span className="ticon book"><IconBook /></span>
                   <span className="body">
                     <span className="t" style={{ fontSize: 15 }}><span><Highlighted text={`${h.pageTitle} › ${h.heading}`} terms={terms} /></span></span>
                     <span className="p"><Highlighted text={snippet(h.text, terms)} terms={terms} /></span>
                   </span>
-                </a>
+                </button>
               ))
             )}
           </section>

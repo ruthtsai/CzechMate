@@ -43,15 +43,18 @@ export function backupFileName(d = new Date()) {
 }
 
 export async function createBackup(db: CzechMateDB): Promise<BackupFile> {
-  return db.transaction('r', [...TABLES.map(t => db.table(t)), db.images], async () => {
+  // Read everything in one transaction, then encode images outside it: awaiting non-database work
+  // (Blob.arrayBuffer) inside a Dexie transaction makes it commit early and the backup fail.
+  const { data, images } = await db.transaction('r', [...TABLES.map(t => db.table(t)), db.images], async () => {
     const data = {} as BackupFile['data'];
     for (const t of TABLES) data[t] = await db.table(t).toArray();
-    const images = await db.images.toArray();
-    data.images = await Promise.all(
-      images.map(async im => ({ id: im.id, mime: im.blob.type || 'image/jpeg', width: im.width, height: im.height, createdAt: im.createdAt, base64: await blobToBase64(im.blob) }))
-    );
-    return { app: 'CzechMate', schemaVersion: BACKUP_SCHEMA_VERSION, exportedAt: localStamp(), data };
+    return { data, images: await db.images.toArray() };
   });
+  data.images = [];
+  for (const im of images) {
+    data.images.push({ id: im.id, mime: im.blob.type || 'image/jpeg', width: im.width, height: im.height, createdAt: im.createdAt, base64: await blobToBase64(im.blob) });
+  }
+  return { app: 'CzechMate', schemaVersion: BACKUP_SCHEMA_VERSION, exportedAt: localStamp(), data };
 }
 
 export class RestoreError extends Error {}

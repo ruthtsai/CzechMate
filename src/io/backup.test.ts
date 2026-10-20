@@ -57,6 +57,17 @@ describe('backup and restore', () => {
     expect(await dst.expenses.get('stale')).toBeUndefined();
   });
 
+  it('backs up and restores images (regression: encoding inside the transaction failed)', async () => {
+    const src = fresh();
+    await src.images.add({ id: 'img1', blob: new Blob([new Uint8Array([1, 2, 3, 250])], { type: 'image/jpeg' }), width: 4, height: 1, createdAt: 'x' });
+    const backup = await createBackup(src);
+    expect(backup.data.images).toHaveLength(1);
+    const dst = fresh();
+    await restoreBackup(dst, parseBackup(JSON.stringify(backup)));
+    const im = await dst.images.get('img1');
+    expect(new Uint8Array(await im!.blob.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 250]));
+  });
+
   it('records the format and version', async () => {
     const b = await createBackup(fresh());
     expect(b).toMatchObject({ app: 'CzechMate', schemaVersion: 1 });

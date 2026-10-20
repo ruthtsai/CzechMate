@@ -19,9 +19,11 @@ export async function syncHandbooks(onProgress?: (label: string) => void): Promi
       // Everything failed: keep the old sections so search keeps working.
       await db.handbookSources.update(src.id, { failedPages: r.failed.map(f => f.url) });
     } else {
-      await db.transaction('rw', db.handbookSections, db.handbookSources, async () => {
+      await db.transaction('rw', db.handbookSections, db.handbookSources, db.noteCache, async () => {
         await db.handbookSections.where('sourceId').equals(src.id).delete();
         await db.handbookSections.bulkAdd(r.sections);
+        // Whole pages are kept too, so the handbook can be read offline inside the app.
+        await db.noteCache.bulkPut(r.markdown.map(m => ({ url: m.url, markdown: m.markdown, fetchedAt: now })));
         await db.handbookSources.update(src.id, { lastSyncedAt: now, pageCount: r.pages.length, failedPages: r.failed.map(f => f.url) });
       });
     }

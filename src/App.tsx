@@ -16,6 +16,7 @@ import { EditorsProvider } from './features/ledger/Editors';
 import { LedgerDataProvider } from './features/ledger/LedgerData';
 import { ResourceEditorsProvider } from './features/library/ResourceEditors';
 import { SyncManager } from './features/sync/SyncManager';
+import { HandbookReaderProvider } from './features/library/HandbookReader';
 
 const TABS = [
   { to: '/', label: '首頁', Icon: IconHome },
@@ -62,23 +63,25 @@ export default function App() {
       <LedgerDataProvider>
         <EditorsProvider>
           <ResourceEditorsProvider>
-            <SettingsCtx.Provider value={openSettings}>
-              <HashRouter>
-                <div className="app">
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/library" element={<LibraryPage />} />
-                    <Route path="/ledger" element={<LedgerPage />} />
-                    <Route path="/stats" element={<StatsPage />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                  <TabBar />
-                </div>
-              </HashRouter>
-              <SettingsSheet open={settings !== null} initialScreen={settings ?? 'main'} onClose={closeSettings} />
-              <UpdatePrompt />
-              <SyncManager />
-            </SettingsCtx.Provider>
+          <HandbookReaderProvider>
+              <SettingsCtx.Provider value={openSettings}>
+                <HashRouter>
+                  <div className="app">
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/library" element={<LibraryPage />} />
+                      <Route path="/ledger" element={<LedgerPage />} />
+                      <Route path="/stats" element={<StatsPage />} />
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                    <TabBar />
+                  </div>
+                </HashRouter>
+                <SettingsSheet open={settings !== null} initialScreen={settings ?? 'main'} onClose={closeSettings} />
+                <UpdatePrompt />
+                <SyncManager />
+              </SettingsCtx.Provider>
+          </HandbookReaderProvider>
           </ResourceEditorsProvider>
         </EditorsProvider>
       </LedgerDataProvider>

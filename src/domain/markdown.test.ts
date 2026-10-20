@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown, stripMarkdown } from './markdown';
+import { renderMarkdown, stripInline, stripMarkdown } from './markdown';
 
 describe('renderMarkdown', () => {
   it('renders headings, lists, emphasis and line breaks', () => {
@@ -40,5 +40,25 @@ describe('stripMarkdown', () => {
   });
   it('flattens tables', () => {
     expect(stripMarkdown('| 票種 | 價格 |\n|---|---|\n| 月票 | 130 |')).toBe('票種 價格\n\n月票 130');
+  });
+});
+
+describe('renderMarkdown with a base', () => {
+  it('resolves site-relative links against the note site', () => {
+    expect(renderMarkdown('[交通篇](/@demo/transport)', 'https://hackmd.io')).toContain('href="https://hackmd.io/@demo/transport"');
+    expect(renderMarkdown('[交通篇](/@demo/transport)')).toContain('href="/@demo/transport"');
+  });
+});
+
+describe('stripInline', () => {
+  it('keeps numbering in headings', () => {
+    expect(stripInline('2. **PID** [Lítačka](https://x) 購票')).toBe('2. PID Lítačka 購票');
+  });
+});
+
+describe('HackMD image sizes', () => {
+  it('renders images that carry a size suffix', () => {
+    const html = renderMarkdown('![票](https://hackmd.io/_uploads/a.jpg =50%x)');
+    expect(html).toContain('<img src="https://hackmd.io/_uploads/a.jpg" alt="票"');
   });
 });
