@@ -16,7 +16,10 @@ async function nextPinOrder() {
 }
 
 /** Saves a resource. `keepImageIds` are existing images to keep (in order); `newImages` are appended. */
-export async function saveResource(input: ResourceInput, opts: { id?: string; keepImageIds?: string[]; newImages?: Compressed[] } = {}): Promise<string> {
+export async function saveResource(
+  input: ResourceInput,
+  opts: { id?: string; keepImageIds?: string[]; newImages?: Compressed[]; source?: Resource['source'] } = {}
+): Promise<string> {
   const t = now();
   return db.transaction('rw', db.resources, db.images, async () => {
     const old = opts.id ? await db.resources.get(opts.id) : undefined;
@@ -34,6 +37,9 @@ export async function saveResource(input: ResourceInput, opts: { id?: string; ke
       pinOrder,
       pinLabel: input.pinLabel?.trim() || undefined,
       imageIds,
+      source: opts.source ?? old?.source ?? 'app',
+      sheetRow: old?.sheetRow,
+      imageNames: old?.imageNames,
       id: opts.id ?? uid(),
       createdAt: old?.createdAt ?? t,
       updatedAt: t

@@ -5,6 +5,7 @@ import type { Resource } from '../../db/schema';
 import { RESOURCE_TYPE_LABEL, STAGE_LABEL, type ResourceType } from '../../domain/constants';
 import { slashDate } from '../../domain/dates';
 import { highlight, snippet } from '../../domain/search';
+import { renderMarkdown, stripMarkdown } from '../../domain/markdown';
 import { IconChat, IconFile, IconGlobe, IconImage, IconLink, IconNote, IconPin } from '../../components/Icons';
 
 export const TYPE_ICON: Record<ResourceType, (p: { width?: number }) => ReactNode> = {
@@ -43,7 +44,8 @@ export const stageChip = (r: Pick<Resource, 'stage'>) => (
 
 export function ResourceCard({ r, terms = [], onClick }: { r: Resource; terms?: string[]; onClick: () => void }) {
   const Icon = TYPE_ICON[r.type];
-  const preview = terms.length ? snippet(r.content, terms) : r.content.replace(/\s+/g, ' ').trim();
+  const plain = stripMarkdown(r.content);
+  const preview = terms.length ? snippet(plain, terms) : plain.replace(/\s+/g, ' ').trim();
   return (
     <button type="button" className="res" onClick={onClick}>
       <span className="ticon" title={RESOURCE_TYPE_LABEL[r.type]}><Icon /></span>
@@ -65,16 +67,9 @@ export function ResourceCard({ r, terms = [], onClick }: { r: Resource; terms?: 
   );
 }
 
-const URL_RE = /(https?:\/\/[^\s<>"'）)】]+)/g;
-
-/** Plain text with URLs turned into links (UI spec 5.7). */
-export function Linkified({ text }: { text: string }) {
-  const parts = text.split(URL_RE);
-  return (
-    <>
-      {parts.map((p, i) => (i % 2 === 1 ? <a key={i} href={p} target="_blank" rel="noopener noreferrer">{p}</a> : <span key={i}>{p}</span>))}
-    </>
-  );
+/** Markdown content; raw HTML in the source is never rendered (domain/markdown.ts). */
+export function Markdown({ source }: { source: string }) {
+  return <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(source) }} />;
 }
 
 export function ImageViewer({ id, onClose }: { id: string | null; onClose: () => void }) {

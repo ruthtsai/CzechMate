@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { db } from '../../db';
 import { deleteResource, saveResource } from '../../db/resources';
+import { getSheetsConfig, queueForSheet } from '../../db/sheetsSync';
+import { requestSheetsSync } from '../sync/SyncManager';
 import { RESOURCE_TYPES, RESOURCE_TYPE_LABEL, STAGES, STAGE_LABEL, type ResourceType, type Stage } from '../../domain/constants';
 import { tagCounts } from '../../domain/search';
 import { isHttpUrl } from '../../io/csvImport';
@@ -125,11 +127,17 @@ export function ResourceForm({ open, editId, onClose, onSaved }: { open: boolean
     if (Object.keys(e).length) return;
     setBusy(true);
     try {
+      // With a linked sheet, new resources go to the sheet (requirements RS-03); edits to pending ones are sent with them.
+      const linked = !!(await getSheetsConfig());
       const id = await saveResource(
         { title: d.title.trim(), type: d.type, stage: d.stage, url: d.url.trim(), content: d.content, tags: d.tags, pinned: d.pinned, pinLabel: d.pinLabel },
-        { id: editId, keepImageIds: d.keepImageIds, newImages: d.newImages }
+        { id: editId, keepImageIds: d.keepImageIds, newImages: d.newImages, source: linked && !editId ? 'pending' : undefined }
       );
-      toast('已成功儲存。');
+      if (linked && !editId) {
+        await queueForSheet([id]);
+        requestSheetsSync();
+        toast(navigator.onLine ? '已儲存，正在寫入試算表。' : '已儲存，連上網路後會寫入試算表。');
+      } else toast('已成功儲存。');
       onSaved?.(id);
       onClose();
     } catch {

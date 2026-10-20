@@ -2,11 +2,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '../../db';
 import { RESOURCE_TYPES, RESOURCE_TYPE_LABEL, STAGES, STAGE_LABEL, type ResourceType, type Stage } from '../../domain/constants';
-import { searchResources, tagCounts, toTerms } from '../../domain/search';
-import { IconPlus, IconSearch } from '../../components/Icons';
+import { searchResources, searchSections, snippet, tagCounts, toTerms } from '../../domain/search';
+import { stripMarkdown } from '../../domain/markdown';
+import { slashDate } from '../../domain/dates';
+import { canonicalNoteUrl, isHackmdNote } from '../../io/hackmd';
+import { syncHandbooks } from '../../db/handbook';
+import { getSetting } from '../../db';
+import { IconBook, IconCheck, IconPlus, IconSearch } from '../../components/Icons';
 import { PageHeader } from '../../components/PageHeader';
-import { EmptyState } from '../../components/ui';
-import { ResourceCard } from './parts';
+import { EmptyState, useToast } from '../../components/ui';
+import { Highlighted, ResourceCard } from './parts';
 import { useResourceEditors } from './ResourceEditors';
 
 interface LibFilters { q: string; stage: 'all' | Stage; type: 'all' | ResourceType; tag: string | null }
@@ -15,7 +20,12 @@ let remembered: LibFilters = { q: '', stage: 'all', type: 'all', tag: null };
 
 export function LibraryPage() {
   const { openResource, editResource } = useResourceEditors();
+  const toast = useToast();
   const resources = useLiveQuery(() => db.resources.toArray(), []);
+  const sections = useLiveQuery(() => db.handbookSections.toArray(), [], []);
+  const notes = useLiveQuery(async () => new Map((await db.noteCache.toArray()).map(n => [n.url, stripMarkdown(n.markdown)])), [], new Map<string, string>());
+  const syncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
+  const [syncing, setSyncing] = useState<string | null>(null);
   const [f, setF] = useState<LibFilters>(remembered);
   const [input, setInput] = useState(f.q);
   const composing = useRef(false);
@@ -34,8 +44,21 @@ export function LibraryPage() {
     const filtered = (resources ?? []).filter(r =>
       (f.stage === 'all' || r.stage === f.stage) && (f.type === 'all' || r.type === f.type) && (!f.tag || r.tags.includes(f.tag))
     );
-    return searchResources(filtered, f.q);
-  }, [resources, f]);
+    return searchResources(filtered, f.q, r => (isHackmdNote(r.url) ? notes.get(canonicalNoteUrl(r.url)!) ?? '' : ''));
+  }, [resources, f, notes]);
+  const handbookHits = useMemo(() => searchSections(sections, f.q).slice(0, 30), [sections, f.q]);
+
+  async function syncNow() {
+    setSyncing('準備中…');
+    try {
+      const r = await syncHandbooks(setSyncing);
+      toast(r.failed.length ? `已同步 ${r.pages - r.failed.length} 篇，有 ${r.failed.length} 篇失敗，請稍後再試。` : `已同步 ${r.pages} 篇。`, { ok: !r.failed.length });
+    } catch {
+      toast('無法連線到 HackMD，請確認網路後再試。', { ok: false });
+    } finally {
+      setSyncing(null);
+    }
+  }
 
   const filtering = f.q.trim() || f.stage !== 'all' || f.type !== 'all' || f.tag;
   const clearAll = () => { setInput(''); set({ q: '', stage: 'all', type: 'all', tag: null }); };
@@ -75,6 +98,23 @@ export function LibraryPage() {
           </div>
         )}
 
+        <div className="sync">
+          {syncing ? (
+            <span>生存手冊同步中：{syncing}</span>
+          ) : syncedAt ? (
+            <>
+              <IconCheck />
+              <span>生存手冊 {sections.length} 段 · {slashDate(syncedAt.slice(0, 10))}</span>
+              <button type="button" onClick={syncNow}>重新同步</button>
+            </>
+          ) : (
+            <>
+              <span>尚未同步生存手冊，同步後就能離線搜尋。</span>
+              <button type="button" onClick={syncNow}>立即同步</button>
+            </>
+          )}
+        </div>
+
         {resources === undefined ? (
           <p className="muted small">載入中…</p>
         ) : resources.length === 0 ? (
@@ -90,6 +130,25 @@ export function LibraryPage() {
               </EmptyState>
             ) : (
               results.map(r => <ResourceCard key={r.id} r={r} terms={terms} onClick={() => openResource(r.id)} />)
+            )}
+          </section>
+        )}
+
+        {terms.length > 0 && (
+          <section className="section">
+            <div className="group-h"><IconBook width={16} height={16} /> 生存手冊 <span className="n num">{handbookHits.length} 段</span></div>
+            {handbookHits.length === 0 ? (
+              <p className="muted small" style={{ margin: 0 }}>{sections.length ? '手冊裡沒有相符的段落。' : '同步生存手冊後，這裡會一起顯示手冊的搜尋結果。'}</p>
+            ) : (
+              handbookHits.map(h => (
+                <a key={h.id} className="res" href={h.anchor ? `${h.pageUrl}#${h.anchor}` : h.pageUrl} target="_blank" rel="noopener noreferrer">
+                  <span className="ticon book"><IconBook /></span>
+                  <span className="body">
+                    <span className="t" style={{ fontSize: 15 }}><span><Highlighted text={`${h.pageTitle} › ${h.heading}`} terms={terms} /></span></span>
+                    <span className="p"><Highlighted text={snippet(h.text, terms)} terms={terms} /></span>
+                  </span>
+                </a>
+              ))
             )}
           </section>
         )}

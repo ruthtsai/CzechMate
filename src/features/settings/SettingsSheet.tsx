@@ -12,6 +12,8 @@ import { useLedger } from '../ledger/LedgerData';
 import { ExportSheet } from '../data/ExportSheet';
 import { ManageCategories, ManagePayments, ManageTrips } from './Manage';
 import { ImportResources, ManagePins, ManageTags } from './ManageLibrary';
+import { GoogleSheetsSettings } from './GoogleSheets';
+import { syncHandbooks } from '../../db/handbook';
 
 const THEME_OPTIONS = [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']] as const;
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/resources_template.csv`;
@@ -38,6 +40,21 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
   const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const sheetName = useLiveQuery(() => getSetting<string>('gsSheetName', ''), [], '');
+  const hbSyncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
+  const [hbBusy, setHbBusy] = useState<string | null>(null);
+
+  async function syncHandbookNow() {
+    setHbBusy('準備中…');
+    try {
+      const r = await syncHandbooks(setHbBusy);
+      toast(r.failed.length ? `已同步，有 ${r.failed.length} 篇失敗，請稍後再試。` : `已同步 ${r.pages} 篇。`, { ok: !r.failed.length });
+    } catch {
+      toast('無法連線到 HackMD，請確認網路後再試。', { ok: false });
+    } finally {
+      setHbBusy(null);
+    }
+  }
   const lastExport = useLiveQuery(() => getSetting<string | undefined>('lastExportAt', undefined), []);
   const lastBackup = useLiveQuery(() => getSetting<string | undefined>('lastBackupAt', undefined), []);
 
@@ -124,6 +141,7 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
         {screen === 'pins' && <ManagePins onBack={back} />}
         {screen === 'tags' && <ManageTags onBack={back} />}
         {screen === 'import' && <ImportResources onBack={back} />}
+        {screen === 'sheets' && <GoogleSheetsSettings onBack={back} />}
         {screen === 'restore' && pendingRestore && (
           <>
             <div className="sheet-h">
@@ -193,6 +211,26 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
         </div>
 
         <div className="setgroup">
+          <h3>同步</h3>
+          <div className="list">
+            <button type="button" className="row" onClick={() => setScreen('sheets')}>
+              <span className="main">
+                <span className="t">Google 試算表</span>
+                <span className="m">{sheetName ? `已連線到「${sheetName}」` : '記帳同步到試算表、從試算表讀取資源'}</span>
+              </span>
+              <span className="end">›</span>
+            </button>
+            <button type="button" className="row" onClick={syncHandbookNow} disabled={!!hbBusy}>
+              <span className="main">
+                <span className="t">同步生存手冊</span>
+                <span className="m">{hbBusy ?? (hbSyncedAt ? `上次同步：${stamp(hbSyncedAt)}` : '還沒有同步；同步後可離線搜尋')}</span>
+              </span>
+              <span className="end">›</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="setgroup">
           <h3>資源庫</h3>
           <div className="list">
             <button type="button" className="row" onClick={() => setScreen('pins')}>
@@ -201,6 +239,26 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
             </button>
             <button type="button" className="row" onClick={() => setScreen('tags')}>
               <span className="main"><span className="t">標籤管理</span><span className="m">改名、合併、刪除</span></span>
+              <span className="end">›</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="setgroup">
+          <h3>同步</h3>
+          <div className="list">
+            <button type="button" className="row" onClick={() => setScreen('sheets')}>
+              <span className="main">
+                <span className="t">Google 試算表</span>
+                <span className="m">{sheetName ? `已連線到「${sheetName}」` : '記帳同步到試算表、從試算表讀取資源'}</span>
+              </span>
+              <span className="end">›</span>
+            </button>
+            <button type="button" className="row" onClick={syncHandbookNow} disabled={!!hbBusy}>
+              <span className="main">
+                <span className="t">同步生存手冊</span>
+                <span className="m">{hbBusy ?? (hbSyncedAt ? `上次同步：${stamp(hbSyncedAt)}` : '還沒有同步；同步後可離線搜尋')}</span>
+              </span>
               <span className="end">›</span>
             </button>
           </div>

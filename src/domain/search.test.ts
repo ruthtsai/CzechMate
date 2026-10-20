@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Resource } from '../db/schema';
-import { highlight, normalize, searchResources, snippet, tagCounts, toTerms } from './search';
+import { highlight, normalize, searchResources, searchSections, snippet, tagCounts, toTerms } from './search';
 
 const r = (id: string, title: string, extra: Partial<Resource> = {}): Resource => ({
   id, title, type: 'note', stage: 'any', content: '', tags: [], url: '', imageIds: [], pinned: false, createdAt: '', updatedAt: '2027-01-01', ...extra
@@ -50,5 +50,23 @@ describe('snippet and highlight', () => {
 describe('tagCounts', () => {
   it('orders tags by use', () => {
     expect(tagCounts([r('a', 'x', { tags: ['交通', '學校'] }), r('b', 'y', { tags: ['交通'] })])).toEqual([['交通', 2], ['學校', 1]]);
+  });
+});
+
+describe('searchSections', () => {
+  const sec = (id: string, heading: string, text: string, order: number) => ({ id, sourceId: 'hb', pageTitle: '交通篇', pageUrl: 'u', heading, anchor: '', text, order });
+  const list = [sec('a', '計程車', '可以用 Bolt 叫車，學生月票不適用', 2), sec('b', '學生月票', '綁定 ISIC 卡號購買', 5), sec('c', '其他', '無關內容', 1)];
+  it('requires every term and ranks heading hits first', () => {
+    expect(searchSections(list, '月票').map(s => s.id)).toEqual(['b', 'a']);
+    expect(searchSections(list, '月票 isic').map(s => s.id)).toEqual(['b']);
+    expect(searchSections(list, '交通篇').map(s => s.id)).toEqual(['c', 'a', 'b']);
+    expect(searchSections(list, '')).toEqual([]);
+  });
+});
+
+describe('searchResources with downloaded notes', () => {
+  it('matches text that only exists in the note', () => {
+    const note = r('n', '我的 HackMD 筆記', { url: 'https://hackmd.io/@me/note' });
+    expect(searchResources([note], '居留卡', () => '居留卡要在 3 天內登記').map(x => x.id)).toEqual(['n']);
   });
 });

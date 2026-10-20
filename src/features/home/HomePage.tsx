@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../../db';
+import { db, getSetting, setSetting } from '../../db';
+import { ExportSheet } from '../data/ExportSheet';
 import { monthKey, monthLabel, today } from '../../domain/dates';
 import { formatAmount } from '../../domain/format';
 import { summarize } from '../../domain/money';
@@ -27,9 +29,26 @@ export function HomePage() {
   const L = useLedger();
   const { openExpense } = useEditors();
   const navigate = useNavigate();
+  const [exportOpen, setExportOpen] = useState(false);
   const { openResource, editResource } = useResourceEditors();
   const openSettings = useOpenSettings();
   const pinned = useLiveQuery(async () => (await db.resources.filter(r => r.pinned).toArray()).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0)), [], []);
+  const reminders = useLiveQuery(async () => {
+    const [lastExport, lastBackup, dismissed] = await Promise.all([
+      getSetting<string | undefined>('lastExportAt', undefined),
+      getSetting<string | undefined>('lastBackupAt', undefined),
+      getSetting<string | undefined>('exportReminderDismissedMonth', undefined)
+    ]);
+    const hasData = (await db.expenses.count()) + (await db.resources.count()) > 0;
+    const month = monthKey(today());
+    const olderExpenses = await db.expenses.where('date').below(`${month}-01`).count();
+    return {
+      // A new month began and last month's expenses have not been exported yet (requirements SYS-03).
+      exportDue: olderExpenses > 0 && (!lastExport || monthKey(lastExport.slice(0, 10)) < month) && dismissed !== month,
+      backupDue: hasData && (!lastBackup || Date.now() - new Date(lastBackup).getTime() > 14 * 86_400_000),
+      month
+    };
+  }, [], { exportDue: false, backupDue: false, month: '' });
   const recent = useLiveQuery(() => db.resources.orderBy('updatedAt').reverse().limit(5).toArray(), [], []);
 
   const month = monthKey(today());
@@ -65,6 +84,23 @@ export function HomePage() {
             <IconAlert />
             <span>有 <b>{pending} 筆</b>刷卡待補帳單金額</span>
             <span className="muted small" style={{ marginLeft: 'auto' }}>去補 ›</span>
+          </button>
+        )}
+        {reminders.exportDue && (
+          <div className="banner" role="note">
+            <IconAlert />
+            <span>新的月份到了，<b>該匯出上個月的記帳</b>。</span>
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              <button type="button" className="linkbtn" onClick={() => setSetting('exportReminderDismissedMonth', reminders.month)}>稍後</button>
+              <button type="button" className="linkbtn" onClick={() => setExportOpen(true)}>匯出 ›</button>
+            </span>
+          </div>
+        )}
+        {reminders.backupDue && (
+          <button type="button" className="banner" onClick={() => openSettings()}>
+            <IconAlert />
+            <span>已超過 14 天沒有備份，<b>資料只存在這支手機上</b>。</span>
+            <span className="muted small" style={{ marginLeft: 'auto' }}>去備份 ›</span>
           </button>
         )}
         {negative.length > 0 && (
@@ -129,6 +165,7 @@ export function HomePage() {
           )}
         </section>
       </main>
+      <ExportSheet open={exportOpen} onClose={() => setExportOpen(false)} />
     </>
   );
 }

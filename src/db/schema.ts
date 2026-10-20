@@ -16,6 +16,15 @@ export interface Resource {
   pinned: boolean;
   pinOrder?: number;
   pinLabel?: string;
+  /**
+   * Where the record lives (requirements spec 6.7): 'sheet' rows come from the Google Sheet and are read-only here;
+   * 'pending' were added in the app and wait in the outbox; 'app' predate the sheet (or no sheet is linked).
+   */
+  source?: 'app' | 'sheet' | 'pending';
+  /** Row number in the 資源 sheet, for opening the sheet at that row. */
+  sheetRow?: number;
+  /** Image file names as written in the sheet (source of imageIds for sheet rows). */
+  imageNames?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +35,27 @@ export interface StoredImage {
   width: number;
   height: number;
   createdAt: string;
+  /** Drive file id and modified time, for images that came from the Drive folder. */
+  driveId?: string;
+  driveModified?: string;
+  name?: string;
+}
+
+/** Downloaded HackMD note behind a resource URL (requirements MD-02). */
+export interface NoteCache {
+  url: string;
+  markdown: string;
+  fetchedAt: string;
+}
+
+/** Writes to the Google Sheet that wait for a connection (requirements RS-03). */
+export interface OutboxItem {
+  id: string;
+  kind: 'appendResource';
+  resourceId: string;
+  createdAt: string;
+  attempts: number;
+  lastError?: string;
 }
 
 export interface HandbookSource {
@@ -125,6 +155,8 @@ export class CzechMateDB extends Dexie {
   expenses!: EntityTable<Expense, 'id'>;
   exchanges!: EntityTable<Exchange, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
+  noteCache!: EntityTable<NoteCache, 'url'>;
+  outbox!: EntityTable<OutboxItem, 'id'>;
 
   constructor(name = DB_NAME) {
     super(name);
@@ -141,5 +173,12 @@ export class CzechMateDB extends Dexie {
       exchanges: 'id, date',
       settings: 'key'
     });
+    this.version(2)
+      .stores({ noteCache: 'url', outbox: 'id, createdAt' })
+      .upgrade(tx =>
+        tx.table('resources').toCollection().modify((r: Resource) => {
+          r.source ??= 'app';
+        })
+      );
   }
 }

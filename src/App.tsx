@@ -15,6 +15,7 @@ import { SettingsSheet } from './features/settings/SettingsSheet';
 import { EditorsProvider } from './features/ledger/Editors';
 import { LedgerDataProvider } from './features/ledger/LedgerData';
 import { ResourceEditorsProvider } from './features/library/ResourceEditors';
+import { SyncManager } from './features/sync/SyncManager';
 
 const TABS = [
   { to: '/', label: '首頁', Icon: IconHome },
@@ -76,6 +77,7 @@ export default function App() {
               </HashRouter>
               <SettingsSheet open={settings !== null} initialScreen={settings ?? 'main'} onClose={closeSettings} />
               <UpdatePrompt />
+              <SyncManager />
             </SettingsCtx.Provider>
           </ResourceEditorsProvider>
         </EditorsProvider>

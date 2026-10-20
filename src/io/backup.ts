@@ -4,7 +4,8 @@ import type { CzechMateDB } from '../db/schema';
 
 export const BACKUP_SCHEMA_VERSION = 1;
 
-const TABLES = ['resources', 'expenses', 'exchanges', 'trips', 'paymentMethods', 'categories', 'handbookSources', 'settings'] as const;
+// Handbook sections and downloaded notes are left out: they can be fetched again.
+const TABLES = ['resources', 'expenses', 'exchanges', 'trips', 'paymentMethods', 'categories', 'handbookSources', 'settings', 'outbox'] as const;
 type TableName = (typeof TABLES)[number];
 
 interface BackupImage { id: string; mime: string; width: number; height: number; createdAt: string; base64: string }

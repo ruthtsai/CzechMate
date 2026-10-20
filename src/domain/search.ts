@@ -1,4 +1,4 @@
-import type { Resource } from '../db/schema';
+import type { HandbookSection, Resource } from '../db/schema';
 
 // Search rules: requirements spec 6.5. Plain substring matching; the data is small and Chinese needs no tokenizer.
 
@@ -10,12 +10,12 @@ export const normalize = (s: string) => fold(s).trim();
 
 export const toTerms = (query: string) => normalize(query).split(/\s+/).filter(Boolean);
 
-/** Rank 0 = title hit, 1 = tag hit, 2 = content/URL only; null = not every term matches. */
-export function rankResource(r: Resource, terms: string[]): number | null {
+/** Rank 0 = title hit, 1 = tag hit, 2 = content/URL only; null = not every term matches. `extra` is e.g. a downloaded note. */
+export function rankResource(r: Resource, terms: string[], extra = ''): number | null {
   if (!terms.length) return 2;
   const title = normalize(r.title);
   const tags = normalize(r.tags.join(' '));
-  const rest = normalize(`${r.content} ${r.url}`);
+  const rest = normalize(`${r.content} ${r.url} ${extra}`);
   let best = 2;
   for (const t of terms) {
     if (title.includes(t)) best = Math.min(best, 0);
@@ -25,13 +25,33 @@ export function rankResource(r: Resource, terms: string[]): number | null {
   return best;
 }
 
-export function searchResources(list: Resource[], query: string): Resource[] {
+export function searchResources(list: Resource[], query: string, extra?: (r: Resource) => string): Resource[] {
   const terms = toTerms(query);
   return list
-    .map(r => ({ r, rank: rankResource(r, terms) }))
+    .map(r => ({ r, rank: rankResource(r, terms, extra?.(r)) }))
     .filter((x): x is { r: Resource; rank: number } => x.rank !== null)
     .sort((a, b) => a.rank - b.rank || (a.r.updatedAt < b.r.updatedAt ? 1 : a.r.updatedAt > b.r.updatedAt ? -1 : 0))
     .map(x => x.r);
+}
+
+/** Handbook sections where every term appears; heading hits first, then book order (requirements spec 6.5). */
+export function searchSections(sections: HandbookSection[], query: string): HandbookSection[] {
+  const terms = toTerms(query);
+  if (!terms.length) return [];
+  return sections
+    .map(s => {
+      const head = normalize(`${s.pageTitle} ${s.heading}`);
+      const body = normalize(s.text);
+      let rank = 1;
+      for (const t of terms) {
+        if (head.includes(t)) rank = 0;
+        else if (!body.includes(t)) return null;
+      }
+      return { s, rank };
+    })
+    .filter((x): x is { s: HandbookSection; rank: number } => x !== null)
+    .sort((a, b) => a.rank - b.rank || a.s.sourceId.localeCompare(b.s.sourceId) || a.s.order - b.s.order)
+    .map(x => x.s);
 }
 
 /** About 60 characters around the first hit, for result previews. */

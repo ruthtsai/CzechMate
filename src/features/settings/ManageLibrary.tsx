@@ -48,6 +48,11 @@ export function ManagePins({ onBack }: { onBack: () => void }) {
                 <button type="button" className="mini" onClick={async () => { await updatePin(p.id, { pinLabel: editing.label }); setEditing(null); }}>儲存</button>
               </div>
             ) : (
+              p.source === 'sheet' ? (
+                <div className="editrow" key={p.id}>
+                  <span className="name"><span>{p.pinLabel || p.title.slice(0, 6)}</span><small>{p.title} · 在試算表調整</small></span>
+                </div>
+              ) : (
               <div className="editrow" key={p.id}>
                 <span className="name"><span>{p.pinLabel || p.title.slice(0, 6)}</span><small>{p.title}</small></span>
                 <button type="button" className="mini" aria-label={`上移 ${p.title}`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
@@ -55,9 +60,13 @@ export function ManagePins({ onBack }: { onBack: () => void }) {
                 <button type="button" className="mini" onClick={() => setEditing({ id: p.id, label: p.pinLabel ?? '' })}>名稱</button>
                 <button type="button" className="mini" aria-label={`取消釘選 ${p.title}`} onClick={async () => { await setPinned(p, false); toast('已取消釘選。'); }}>✕</button>
               </div>
+              )
             )
           )}
         </div>
+      )}
+      {pins.some(p => p.source === 'sheet') && (
+        <p className="muted tiny" style={{ margin: 0 }}>來自試算表的連結：在「釘選」欄填數字（1、2、3…）決定順序，在「常用連結名稱」欄設定顯示名稱。</p>
       )}
       <p className="muted tiny" style={{ margin: 0 }}>首頁每列顯示 4 個，名稱太長會被截斷，可以設定較短的顯示名稱。</p>
     </>
