@@ -12,3 +12,6 @@ CzechMate_UI_Spec.md
 CzechMate_Requirements_Spec.md
 *_Spec.md
 .scratch/
+
+# Local tool settings
+.claude/
