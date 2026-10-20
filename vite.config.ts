@@ -7,6 +7,10 @@ import pkg from './package.json';
 
 export default defineConfig({
   base: '/CzechMate/',
+  build: {
+    // ExcelJS is a lazily loaded ~940 kB chunk, only fetched when exporting.
+    chunkSizeWarningLimit: 1000
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version)
   },

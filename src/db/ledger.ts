@@ -141,3 +141,8 @@ export async function move<T extends { id: string; order: number }>(table: 'paym
     }));
   });
 }
+
+/** Fill in the bill amount from the statistics view (requirements STAT-03). */
+export async function setBill(id: string, billTwd: number) {
+  await db.expenses.update(id, { billTwd: Math.round(billTwd), updatedAt: now() });
+}

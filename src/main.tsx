@@ -5,6 +5,7 @@ import { applyCachedTheme } from './theme';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/forms.css';
+import './styles/stats.css';
 
 applyCachedTheme();
 

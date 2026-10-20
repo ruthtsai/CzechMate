@@ -19,6 +19,7 @@ interface Filters {
   to: string;
   mode: 'all' | Mode;
   tripId: string; // 'all' or id
+  /** 'all', a category id, or 'name:<名稱>' for same-named categories across modes (from statistics). */
   categoryId: string;
   paymentId: string;
   missing: null | 'pending' | 'no-rate';
@@ -67,11 +68,14 @@ export function LedgerPage() {
         out = out.filter(e => e.date >= from && e.date <= to);
       }
       if (f.mode !== 'all') out = out.filter(e => e.mode === f.mode);
-      if (f.categoryId !== 'all') out = out.filter(e => e.categoryId === f.categoryId);
+      if (f.categoryId.startsWith('name:')) {
+        const name = f.categoryId.slice(5);
+        out = out.filter(e => L.category(e.categoryId)?.name === name);
+      } else if (f.categoryId !== 'all') out = out.filter(e => e.categoryId === f.categoryId);
       if (f.paymentId !== 'all') out = out.filter(e => e.paymentId === f.paymentId);
     }
     return [...out].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1));
-  }, [L.expenses, L.money, f]);
+  }, [L, f]);
 
   const days = useMemo(() => {
     const m = new Map<string, typeof list>();
@@ -129,7 +133,7 @@ export function LedgerPage() {
               <button type="button" className="fchip" onClick={() => setFilterOpen(true)}>更多篩選</button>
               {f.categoryId !== 'all' && (
                 <button type="button" className="fchip" aria-pressed="true" onClick={() => set({ categoryId: 'all' })} aria-label="移除類別篩選">
-                  {L.category(f.categoryId)?.name}<span className="x">✕</span>
+                  {f.categoryId.startsWith('name:') ? f.categoryId.slice(5) : L.category(f.categoryId)?.name}<span className="x">✕</span>
                 </button>
               )}
               {f.paymentId !== 'all' && (

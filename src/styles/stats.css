@@ -1,0 +1,38 @@
+/* Statistics (UI spec section 7). */
+.monthnav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.monthnav b { font-size: 17px; }
+.monthnav button { width: 44px; height: 44px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; font-size: 18px; color: var(--text-primary); }
+.monthnav button:disabled { opacity: 0.35; }
+
+.total { display: flex; flex-direction: column; gap: 6px; }
+.total .big { font-size: 30px; font-weight: 700; line-height: 1.1; }
+.total .big small { font-size: 15px; font-weight: 500; color: var(--text-secondary); margin-right: 4px; }
+
+.donut-wrap { display: flex; align-items: center; gap: 16px; }
+.donut { width: 140px; height: 140px; flex: none; }
+.donut .lbl { fill: var(--text-secondary); font-size: 10px; }
+.donut .val { fill: var(--text-primary); font-size: 15px; font-weight: 700; }
+.catlist { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.catlist button, .catlist div { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0; border: 0; background: none; text-align: left; font-size: 13px; }
+.catlist .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catlist .v { font-variant-numeric: tabular-nums; }
+.catlist .pct { width: 38px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) { .donut-wrap { flex-direction: column; align-items: stretch; } .donut { align-self: center; width: 160px; height: 160px; } }
+
+.trip { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 14px 16px; text-align: left; background: var(--travel-cream); border: 1px solid var(--border); border-radius: var(--r-card); }
+.trip .h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.trip .name { font-size: 17px; font-weight: 600; color: var(--travel-coffee); }
+.trip .sum { font-size: 20px; font-weight: 700; color: var(--accent-travel); white-space: nowrap; }
+.trip .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--text-secondary); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.paycard { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px 14px; text-align: left; background: none; border: 0; }
+.paycard .h { display: flex; justify-content: space-between; align-items: center; }
+.paycard .h b { font-size: 16px; }
+.kv { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.kv > span:first-child { color: var(--text-secondary); }
+.fillrow { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.fillrow .main { flex: 1; min-width: 0; font-size: 14px; }
+.fillrow input { width: 100px; min-height: 40px; padding: 0 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 16px; text-align: right; }
+.fillrow .go { min-height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--primary); color: var(--primary-text); font-weight: 600; }
