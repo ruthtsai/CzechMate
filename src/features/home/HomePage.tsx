@@ -7,10 +7,18 @@ import { summarize } from '../../domain/money';
 import type { Currency } from '../../domain/constants';
 import { IconAlert, IconPin, IconPlus } from '../../components/Icons';
 import { EmptyState } from '../../components/ui';
-import { PageHeader } from '../../components/PageHeader';
+import { PageHeader, useOpenSettings } from '../../components/PageHeader';
+import { ResourceCard } from '../library/parts';
+import { useResourceEditors } from '../library/ResourceEditors';
 import { useEditors } from '../ledger/Editors';
 import { useLedger } from '../ledger/LedgerData';
 import { presetLedgerFilter } from '../ledger/LedgerPage';
+
+/** Short mark for a pinned link: up to 3 Latin letters, or the first character. */
+function pinMonogram(label: string) {
+  const latin = label.match(/[A-Za-z]+/)?.[0];
+  return latin && /^[A-Za-z]/.test(label.trim()) ? latin.slice(0, 3) : label.trim().slice(0, 1);
+}
 
 // iOS keeps home-screen web apps and Safari tabs in separate storage (requirements spec 3).
 const inSafariTab = navigator.standalone === false;
@@ -19,7 +27,10 @@ export function HomePage() {
   const L = useLedger();
   const { openExpense } = useEditors();
   const navigate = useNavigate();
-  const pinned = useLiveQuery(() => db.resources.filter(r => r.pinned).count(), [], 0);
+  const { openResource, editResource } = useResourceEditors();
+  const openSettings = useOpenSettings();
+  const pinned = useLiveQuery(async () => (await db.resources.filter(r => r.pinned).toArray()).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0)), [], []);
+  const recent = useLiveQuery(() => db.resources.orderBy('updatedAt').reverse().limit(5).toArray(), [], []);
 
   const month = monthKey(today());
   const thisMonth = L.expenses.filter(e => monthKey(e.date) === month);
@@ -64,9 +75,21 @@ export function HomePage() {
         )}
 
         <section className="section">
-          <div className="sec-h"><h2>常用連結</h2></div>
-          {pinned === 0 && (
+          <div className="sec-h">
+            <h2>常用連結</h2>
+            {pinned.length > 1 && <button type="button" className="linkbtn" onClick={() => openSettings('pins')}>排序</button>}
+          </div>
+          {pinned.length === 0 ? (
             <EmptyState icon={<IconPin />}>還沒有釘選的連結。在資源上開啟「釘選到首頁」，學校系統等常用網站就會出現在這裡。</EmptyState>
+          ) : (
+            <div className="pins">
+              {pinned.map(r => (
+                <a key={r.id} className="pin" href={r.url} target="_blank" rel="noopener noreferrer">
+                  <span className="ico" aria-hidden="true">{pinMonogram(r.pinLabel || r.title)}</span>
+                  <span className="lbl">{r.pinLabel || r.title.slice(0, 6)}</span>
+                </a>
+              ))}
+            </div>
           )}
         </section>
 
@@ -93,8 +116,17 @@ export function HomePage() {
         </section>
 
         <section className="section">
-          <div className="sec-h"><h2>最近新增的資源</h2></div>
-          <EmptyState>還沒有儲存資源，新增第一筆，或從設定匯入整理好的 CSV。</EmptyState>
+          <div className="sec-h">
+            <h2>最近更新的資源</h2>
+            {recent.length > 0 && <button type="button" className="linkbtn" onClick={() => navigate('/library')}>全部 ›</button>}
+          </div>
+          {recent.length === 0 ? (
+            <EmptyState action={<button type="button" className="btn btn-secondary" onClick={() => editResource()}><IconPlus />新增資源</button>}>
+              還沒有儲存資源，新增第一筆，或從設定匯入整理好的 CSV。
+            </EmptyState>
+          ) : (
+            recent.map(r => <ResourceCard key={r.id} r={r} onClick={() => openResource(r.id)} />)
+          )}
         </section>
       </main>
     </>

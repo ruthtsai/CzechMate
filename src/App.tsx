@@ -5,7 +5,7 @@ import { getSetting } from './db';
 import type { Theme } from './domain/constants';
 import { applyTheme } from './theme';
 import { IconChart, IconHome, IconLibrary, IconWallet } from './components/Icons';
-import { SettingsCtx } from './components/PageHeader';
+import { SettingsCtx, type SettingsScreen } from './components/PageHeader';
 import { ToastProvider, useToast } from './components/ui';
 import { HomePage } from './features/home/HomePage';
 import { LibraryPage } from './features/library/LibraryPage';
@@ -14,6 +14,7 @@ import { StatsPage } from './features/stats/StatsPage';
 import { SettingsSheet } from './features/settings/SettingsSheet';
 import { EditorsProvider } from './features/ledger/Editors';
 import { LedgerDataProvider } from './features/ledger/LedgerData';
+import { ResourceEditorsProvider } from './features/library/ResourceEditors';
 
 const TABS = [
   { to: '/', label: '首頁', Icon: IconHome },
@@ -46,9 +47,9 @@ function UpdatePrompt() {
 }
 
 export default function App() {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const [settings, setSettings] = useState<SettingsScreen | null>(null);
+  const openSettings = useCallback((screen: SettingsScreen = 'main') => setSettings(screen), []);
+  const closeSettings = useCallback(() => setSettings(null), []);
 
   useEffect(() => {
     // The database is the source of truth for the theme; localStorage only avoids a flash on launch.
@@ -59,22 +60,24 @@ export default function App() {
     <ToastProvider>
       <LedgerDataProvider>
         <EditorsProvider>
-          <SettingsCtx.Provider value={openSettings}>
-            <HashRouter>
-              <div className="app">
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/library" element={<LibraryPage />} />
-                  <Route path="/ledger" element={<LedgerPage />} />
-                  <Route path="/stats" element={<StatsPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-                <TabBar />
-              </div>
-            </HashRouter>
-            <SettingsSheet open={settingsOpen} onClose={closeSettings} />
-            <UpdatePrompt />
-          </SettingsCtx.Provider>
+          <ResourceEditorsProvider>
+            <SettingsCtx.Provider value={openSettings}>
+              <HashRouter>
+                <div className="app">
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/library" element={<LibraryPage />} />
+                    <Route path="/ledger" element={<LedgerPage />} />
+                    <Route path="/stats" element={<StatsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                  <TabBar />
+                </div>
+              </HashRouter>
+              <SettingsSheet open={settings !== null} initialScreen={settings ?? 'main'} onClose={closeSettings} />
+              <UpdatePrompt />
+            </SettingsCtx.Provider>
+          </ResourceEditorsProvider>
         </EditorsProvider>
       </LedgerDataProvider>
     </ToastProvider>

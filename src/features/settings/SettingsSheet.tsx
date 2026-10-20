@@ -7,9 +7,11 @@ import { shareOrDownload } from '../../io/share';
 import { applyTheme } from '../../theme';
 import { IconShare } from '../../components/Icons';
 import { Seg, Sheet, useToast } from '../../components/ui';
+import type { SettingsScreen } from '../../components/PageHeader';
 import { useLedger } from '../ledger/LedgerData';
 import { ExportSheet } from '../data/ExportSheet';
 import { ManageCategories, ManagePayments, ManageTrips } from './Manage';
+import { ImportResources, ManagePins, ManageTags } from './ManageLibrary';
 
 const THEME_OPTIONS = [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']] as const;
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/resources_template.csv`;
@@ -26,11 +28,11 @@ function formatBytes(n: number) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open: boolean; initialScreen?: SettingsScreen; onClose: () => void }) {
   const toast = useToast();
   const theme = useLiveQuery(() => getSetting<Theme>('theme', 'system'), [], 'system');
   const { payments, categories, trips } = useLedger();
-  const [screen, setScreen] = useState<'main' | 'payments' | 'categories' | 'trips' | 'restore'>('main');
+  const [screen, setScreen] = useState<SettingsScreen>(initialScreen);
   const [storage, setStorage] = useState<{ usage?: number; persisted?: boolean }>({});
   const [exportOpen, setExportOpen] = useState(false);
   const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null);
@@ -40,8 +42,8 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
   const lastBackup = useLiveQuery(() => getSetting<string | undefined>('lastBackupAt', undefined), []);
 
   useEffect(() => {
-    if (!open) setScreen('main');
-  }, [open]);
+    setScreen(open ? initialScreen : 'main');
+  }, [open, initialScreen]);
 
   useEffect(() => {
     if (!open || !navigator.storage) return;
@@ -67,7 +69,6 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
     }
   }
 
-  const soon = () => toast('這個功能還在開發中。', { ok: false });
 
   async function backup() {
     setBusy(true);
@@ -120,6 +121,9 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         {screen === 'payments' && <ManagePayments onBack={back} />}
         {screen === 'categories' && <ManageCategories onBack={back} />}
         {screen === 'trips' && <ManageTrips onBack={back} />}
+        {screen === 'pins' && <ManagePins onBack={back} />}
+        {screen === 'tags' && <ManageTags onBack={back} />}
+        {screen === 'import' && <ImportResources onBack={back} />}
         {screen === 'restore' && pendingRestore && (
           <>
             <div className="sheet-h">
@@ -189,6 +193,34 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         </div>
 
         <div className="setgroup">
+          <h3>資源庫</h3>
+          <div className="list">
+            <button type="button" className="row" onClick={() => setScreen('pins')}>
+              <span className="main"><span className="t">常用連結排序</span><span className="m">調整首頁連結順序與顯示名稱</span></span>
+              <span className="end">›</span>
+            </button>
+            <button type="button" className="row" onClick={() => setScreen('tags')}>
+              <span className="main"><span className="t">標籤管理</span><span className="m">改名、合併、刪除</span></span>
+              <span className="end">›</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="setgroup">
+          <h3>資源庫</h3>
+          <div className="list">
+            <button type="button" className="row" onClick={() => setScreen('pins')}>
+              <span className="main"><span className="t">常用連結排序</span><span className="m">調整首頁連結順序與顯示名稱</span></span>
+              <span className="end">›</span>
+            </button>
+            <button type="button" className="row" onClick={() => setScreen('tags')}>
+              <span className="main"><span className="t">標籤管理</span><span className="m">改名、合併、刪除</span></span>
+              <span className="end">›</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="setgroup">
           <h3>資料</h3>
           <div className="list">
             <button type="button" className="row" onClick={downloadTemplate}>
@@ -219,9 +251,12 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
               </span>
               <span className="end">›</span>
             </button>
-            <button type="button" className="row" onClick={soon}>
-              <span className="main"><span className="t">匯入資源 CSV</span></span>
-              <span className="chip">開發中</span>
+            <button type="button" className="row" onClick={() => setScreen('import')}>
+              <span className="main">
+                <span className="t">匯入資源 CSV</span>
+                <span className="m">可同時選取 CSV 與圖片</span>
+              </span>
+              <span className="end">›</span>
             </button>
           </div>
           <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={e => pickRestore(e.target.files?.[0])} />

@@ -6,6 +6,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/forms.css';
 import './styles/stats.css';
+import './styles/library.css';
 
 applyCachedTheme();
 
