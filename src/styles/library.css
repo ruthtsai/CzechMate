@@ -70,3 +70,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .sync { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
 .sync svg { width: 14px; height: 14px; color: var(--success); flex: none; }
 .sync button { border: 0; background: none; color: var(--primary); font-size: 12px; padding: 4px; }
+/* Icon links pasted as HTML in HackMD (e.g. the PID transport icons) lose their page styles when cleaned;
+   SVG icons are usually white glyphs, so show them as small dark tiles in a row. */
+.md div:has(> a > img[src$=".svg"]) { display: inline-block; margin: 0 6px 6px 0; vertical-align: middle; }
+.md a > img[src$=".svg"] { width: 40px; height: 40px; padding: 7px; border-radius: 8px; background: #243229; object-fit: contain; }

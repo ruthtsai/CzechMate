@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { renderMarkdown, stripInline, stripMarkdown } from './markdown';
 
@@ -10,10 +11,56 @@ describe('renderMarkdown', () => {
     expect(html).toContain('第一行<br>');
   });
 
-  it('never renders raw HTML from the source', () => {
-    const html = renderMarkdown('<script>alert(1)</script><img src=x onerror=alert(1)>');
+  it('keeps safe HTML from notes but removes anything that could run or restyle the app', () => {
+    const html = renderMarkdown(
+      [
+        '前言',
+        '',
+        // <script> removal is checked in a real browser; happy-dom returns an empty result for it.
+        '<div class="card" style="color:red" onclick="x()">文字<img src="x.png" onerror="alert(1)"></div>',
+        '',
+        '<a href="javascript:alert(1)">連結</a>'
+      ].join('\n')
+    );
     expect(html).not.toContain('<script');
-    expect(html).not.toContain('<img src=x');
+    expect(html).not.toContain('onerror');
+    expect(html).not.toContain('onclick');
+    expect(html).not.toContain('style=');
+    expect(html).not.toContain('class="card"');
+    expect(html).not.toContain('javascript:');
+    expect(html).toMatch(/<img[^>]*src="x.png"/);
+    expect(html).toContain('<div>文字');
+  });
+
+  it('renders a pasted HTML page from HackMD as its content only', () => {
+    const page = [
+      '布拉格的大眾交通很簡單。',
+      '',
+      '<!DOCTYPE html> /* 註解 /',
+      '<html lang="en">',
+      '<head>',
+      '<title>Icon Display</title>',
+      '<style>',
+      '.logo { color: #d32f2f; }',
+      '</style>',
+      '</head>',
+      '<body>',
+      '<div class="logo-container">',
+      '<div class="logo">pid</div>',
+      '<div class="icon"><a href="https://pid.cz/en/metro"><img src="https://hackmd.io/_uploads/a.svg" alt="Metro"></a></div>',
+      '</div>',
+      '</body>',
+      '</html>'
+    ].join('\n');
+    const html = renderMarkdown(page);
+    expect(html).toContain('布拉格的大眾交通很簡單。');
+    expect(html).not.toMatch(/DOCTYPE|Icon Display|\.logo|<style|<html|<head|註解/);
+    const link = html.match(/<a [^>]*href="https:\/\/pid.cz\/en\/metro"[^>]*>/)?.[0] ?? '';
+    expect(link).toContain('target="_blank"');
+    expect(link).toContain('rel="noopener noreferrer"');
+    expect(html).toMatch(/<img[^>]*src="https:\/\/hackmd.io\/_uploads\/a.svg"/);
+    expect(stripMarkdown(page)).not.toMatch(/<|Icon Display|logo \{/);
+    expect(stripMarkdown(page)).toContain('pid');
   });
 
   it('opens external links in a new tab and keeps anchors', () => {
@@ -59,6 +106,7 @@ describe('stripInline', () => {
 describe('HackMD image sizes', () => {
   it('renders images that carry a size suffix', () => {
     const html = renderMarkdown('![票](https://hackmd.io/_uploads/a.jpg =50%x)');
-    expect(html).toContain('<img src="https://hackmd.io/_uploads/a.jpg" alt="票"');
+    expect(html).toMatch(/<img[^>]*src="https:\/\/hackmd.io\/_uploads\/a.jpg"/);
+    expect(html).toContain('alt="票"');
   });
 });

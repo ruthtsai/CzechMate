@@ -1,33 +1,58 @@
+import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
 // Markdown display for resource content and HackMD notes (requirements MD-01).
-// Raw HTML in the source is never rendered (`html: false`), so the output is safe to inject.
+// HackMD notes may contain raw HTML. It is rendered, then cleaned with DOMPurify: no scripts, styles,
+// frames, forms or inline styles survive, and source classes are dropped so they cannot pick up app styles.
+// Without a DOM (tests in Node), raw HTML is shown escaped instead.
 
-const md = new MarkdownIt({ html: false, linkify: true, breaks: true, typographer: false });
+const hasDom = typeof window !== 'undefined' && typeof document !== 'undefined';
+const md = new MarkdownIt({ html: hasDom, linkify: true, breaks: true, typographer: false });
 
-const defaultLink = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
-md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
-  const t = tokens[idx];
-  let href = t.attrGet('href') ?? '';
-  // Site-relative links (HackMD's `/@user/note`) point at the note's own site, not at this app.
-  const base = (env as { base?: string } | undefined)?.base;
-  if (base && href.startsWith('/') && !href.startsWith('//')) {
-    href = new URL(href, base).toString();
-    t.attrSet('href', href);
-  }
-  // In-page anchors stay; everything else opens outside the app.
-  if (!href.startsWith('#')) {
-    t.attrSet('target', '_blank');
-    t.attrSet('rel', 'noopener noreferrer');
-  }
-  return defaultLink(tokens, idx, options, env, self);
-};
 md.renderer.rules.image = (tokens, idx) => {
   const t = tokens[idx];
   const src = md.utils.escapeHtml(t.attrGet('src') ?? '');
   const alt = md.utils.escapeHtml(t.content);
-  return `<img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer">`;
+  return `<img src="${src}" alt="${alt}">`;
 };
+
+const purifier = hasDom ? DOMPurify(window) : null;
+let currentBase: string | undefined;
+purifier?.addHook('afterSanitizeAttributes', node => {
+  if (node.tagName === 'A') {
+    let href = node.getAttribute('href') ?? '';
+    // Site-relative links (HackMD's `/@user/note`) point at the note's own site, not at this app.
+    if (currentBase && href.startsWith('/') && !href.startsWith('//')) {
+      href = new URL(href, currentBase).toString();
+      node.setAttribute('href', href);
+    }
+    // In-page anchors stay; everything else opens outside the app.
+    if (href && !href.startsWith('#')) {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  }
+  if (node.tagName === 'IMG') {
+    node.setAttribute('loading', 'lazy');
+    node.setAttribute('referrerpolicy', 'no-referrer');
+  }
+});
+
+const PURIFY = {
+  FORBID_TAGS: ['style', 'script', 'iframe', 'frame', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'link', 'meta', 'title', 'base'],
+  FORBID_ATTR: ['style', 'class', 'id'],
+  ADD_ATTR: ['target']
+};
+
+function clean(html: string, base?: string): string {
+  if (!purifier) return html;
+  currentBase = base;
+  try {
+    return purifier.sanitize(html, PURIFY) as string;
+  } finally {
+    currentBase = undefined;
+  }
+}
 
 const CALLOUT = /^\s*:::\s*(\w+)?/;
 const CALLOUT_KINDS = ['info', 'success', 'warning', 'danger', 'spoiler'];
@@ -39,6 +64,7 @@ function cleanHackmd(src: string): string {
     .replace(/\[color=[^\]]*\]/gi, '')
     .replace(/\{%\s*(youtube|vimeo|gist|slideshare|speakerdeck|pdf|hackmd)[^%]*%\}/gi, '')
     .replace(/^\s*\[TOC\]\s*$/gim, '')
+    .replace(/^.*<!DOCTYPE[^>]*>.*$/gim, '') // pasted whole HTML pages: the doctype line is noise
     .replace(/(!\[[^\]]*\]\(\S+?)\s+=[\d.%]*x?[\d.%]*\)/g, '$1)') // HackMD image size: ![](url =50%x)
     .replace(/^---\s*\n(?:[\w-]+:.*\n)+---\s*\n/, ''); // front matter
 }
@@ -50,7 +76,8 @@ export function renderMarkdown(src: string, base?: string): string {
   let buf: string[] = [];
   let kind: string | null = null;
   const flush = () => {
-    const html = md.render(buf.join('\n'), { base });
+    // Clean each piece before adding our own callout wrapper, whose class must survive.
+    const html = clean(md.render(buf.join('\n')), base);
     out.push(kind ? `<div class="callout callout-${kind}">${html}</div>` : html);
     buf = [];
   };
@@ -84,6 +111,10 @@ export function stripInline(src: string): string {
 /** Plain text for previews and search: drops Markdown and HackMD markup, keeps words and link text. */
 export function stripMarkdown(src: string): string {
   return cleanHackmd(src)
+    // HTML pasted into notes: drop non-text blocks, then the tags themselves
+    .replace(/<(style|script|title|head)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
     .replace(/```[\s\S]*?```/g, m => m.replace(/```\w*/g, ''))
     .replace(/^\s*:::.*$/gm, '')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')

@@ -33,9 +33,12 @@ export function LibraryPage() {
   const set = (patch: Partial<LibFilters>) => setF(prev => (remembered = { ...prev, ...patch }));
 
   // Search 150 ms after typing stops; never while an IME is composing (requirements spec 6.5).
+  // The check happens when the timer fires, because with 注音 the final text arrives before
+  // compositionend, so the input value does not change again when composing ends.
   useEffect(() => {
-    if (composing.current) return;
-    const t = setTimeout(() => set({ q: input }), 150);
+    const t = setTimeout(() => {
+      if (!composing.current) set({ q: input });
+    }, 150);
     return () => clearTimeout(t);
   }, [input]);
 
@@ -76,7 +79,11 @@ export function LibraryPage() {
             type="search" placeholder="搜尋標題、內容、標籤或網址" aria-label="搜尋資源" value={input} enterKeyHint="search"
             onChange={e => setInput(e.target.value)}
             onCompositionStart={() => { composing.current = true; }}
-            onCompositionEnd={e => { composing.current = false; setInput(e.currentTarget.value); }}
+            onCompositionEnd={e => {
+              composing.current = false;
+              setInput(e.currentTarget.value);
+              set({ q: e.currentTarget.value }); // search right away; the value may not have changed
+            }}
           />
           {input && <button type="button" className="clear" aria-label="清除搜尋" onClick={() => { setInput(''); set({ q: '' }); }}>✕</button>}
         </div>
