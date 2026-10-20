@@ -9,6 +9,7 @@ import { takesBill, validateExpense, type Errors } from '../../domain/validate';
 import { DeleteButton, Field, FieldError, Options } from '../../components/form';
 import { Seg, Sheet, useToast } from '../../components/ui';
 import { useLedger } from './LedgerData';
+import { revealExpense } from './ledgerFilters';
 
 interface Draft {
   mode: Mode;
@@ -116,13 +117,14 @@ export function ExpenseForm({ open, editId, onClose }: { open: boolean; editId?:
     if (!r.ok) return;
     setSaving(true);
     try {
-      await saveExpense(
+      const savedId = await saveExpense(
         {
           date: d.date, mode: d.mode, categoryId: d.categoryId, amount: r.values.amount, currency: d.currency, paymentId: d.paymentId,
           tripId: r.values.tripId, itemName: d.itemName.trim(), place: d.place.trim(), note: d.note.trim(), billTwd: r.values.billTwd
         },
         editId
       );
+      revealExpense(savedId, d.date);
       toast('已成功儲存。');
       onClose();
     } catch {

@@ -1,41 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CURRENCIES, MODES, MODE_SHORT, type Currency, type Mode } from '../../domain/constants';
-import { monthRange, shortDate, today, weekday, weekRange } from '../../domain/dates';
+import { CURRENCIES, MODES, MODE_SHORT, type Currency } from '../../domain/constants';
+import { shortDate, today, weekday } from '../../domain/dates';
 import { formatAmount, formatRate, formatTwd } from '../../domain/format';
 import { summarize } from '../../domain/money';
+import { defaultFilters, filterExpenses, rememberFilters, takeReveal, takeStartFilters, type Filters, type Period } from './ledgerFilters';
 import { Field, Options } from '../../components/form';
 import { IconAlert, IconExchange, IconPlus, IconWallet } from '../../components/Icons';
 import { PageHeader } from '../../components/PageHeader';
-import { EmptyState, Seg, Sheet } from '../../components/ui';
+import { EmptyState, Seg, Sheet, useToast } from '../../components/ui';
 import { useEditors } from './Editors';
 import { useLedger } from './LedgerData';
 import { ExchangeRow, ExpenseRow } from './rows';
-
-type Period = 'week' | 'month' | 'all' | 'custom';
-interface Filters {
-  seg: 'expenses' | 'exchanges';
-  period: Period;
-  from: string;
-  to: string;
-  mode: 'all' | Mode;
-  tripId: string; // 'all' or id
-  /** 'all', a category id, or 'name:<名稱>' for same-named categories across modes (from statistics). */
-  categoryId: string;
-  paymentId: string;
-  missing: null | 'pending' | 'no-rate';
-}
-
-// Kept for the session so switching tabs does not reset the filters.
-let remembered: Filters | null = null;
-const initial = (): Filters => {
-  const [from, to] = monthRange(today());
-  return { seg: 'expenses', period: 'month', from, to, mode: 'all', tripId: 'all', categoryId: 'all', paymentId: 'all', missing: null };
-};
-
-/** Lets other pages open the ledger with a filter, e.g. the home banner showing pending card payments. */
-export function presetLedgerFilter(patch: Partial<Filters>) {
-  remembered = { ...(remembered ?? initial()), ...patch };
-}
 
 const SEGMENTS = [['expenses', '支出'], ['exchanges', '換匯']] as const;
 const PERIODS: [Period, string][] = [['week', '本週'], ['month', '本月'], ['all', '全部'], ['custom', '自訂']];
@@ -43,10 +18,16 @@ const PERIODS: [Period, string][] = [['week', '本週'], ['month', '本月'], ['
 export function LedgerPage() {
   const L = useLedger();
   const { openExpense, openExchange } = useEditors();
-  const [f, setF] = useState<Filters>(() => remembered ?? initial());
+  const toast = useToast();
+  const [f, setF] = useState<Filters>(takeStartFilters);
   const [filterOpen, setFilterOpen] = useState(false);
-  useEffect(() => { remembered = f; }, [f]);
-  const set = (patch: Partial<Filters>) => setF(prev => ({ ...prev, ...patch }));
+  // Only the user's own choices are remembered, never the "only pending" shortcut.
+  const set = (patch: Partial<Filters>) =>
+    setF(prev => {
+      const next = { ...prev, ...patch };
+      rememberFilters(next);
+      return next;
+    });
 
   const counts = useMemo(() => {
     let pending = 0, noRate = 0;
@@ -57,25 +38,23 @@ export function LedgerPage() {
     return { pending, noRate };
   }, [L.money]);
 
-  const list = useMemo(() => {
-    let out = L.expenses;
-    if (f.missing) out = out.filter(e => L.money.expenses.get(e.id)?.source === f.missing);
-    else {
-      const byTrip = f.mode === 'travel' && f.tripId !== 'all';
-      if (byTrip) out = out.filter(e => e.tripId === f.tripId);
-      else if (f.period !== 'all') {
-        const [from, to] = f.period === 'week' ? weekRange(today()) : f.period === 'month' ? monthRange(today()) : [f.from, f.to];
-        out = out.filter(e => e.date >= from && e.date <= to);
-      }
-      if (f.mode !== 'all') out = out.filter(e => e.mode === f.mode);
-      if (f.categoryId.startsWith('name:')) {
-        const name = f.categoryId.slice(5);
-        out = out.filter(e => L.category(e.categoryId)?.name === name);
-      } else if (f.categoryId !== 'all') out = out.filter(e => e.categoryId === f.categoryId);
-      if (f.paymentId !== 'all') out = out.filter(e => e.paymentId === f.paymentId);
-    }
-    return [...out].sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1));
-  }, [L, f]);
+  const list = useMemo(() => filterExpenses(f, L.expenses, L.money.expenses, L.category), [L, f]);
+
+  // A just-saved expense must be visible: if the current filters hide it, go back to the usual view.
+  useEffect(() => {
+    const check = () => {
+      const target = takeReveal(id => L.expenses.some(e => e.id === id));
+      if (!target) return;
+      const visible = f.seg === 'expenses' && filterExpenses(f, L.expenses, L.money.expenses, L.category).some(e => e.id === target.id);
+      if (visible) return;
+      const thisMonth = target.date.slice(0, 7) === today().slice(0, 7);
+      set({ ...defaultFilters(), period: thisMonth ? 'month' : 'all' });
+      toast('已切回全部支出，才看得到剛記的那筆。');
+    };
+    check();
+    window.addEventListener('czechmate-reveal', check);
+    return () => window.removeEventListener('czechmate-reveal', check);
+  });
 
   const days = useMemo(() => {
     const m = new Map<string, typeof list>();

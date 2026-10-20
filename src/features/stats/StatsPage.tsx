@@ -11,7 +11,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, Seg, useToast } from '../../components/ui';
 import { useEditors } from '../ledger/Editors';
 import { useLedger } from '../ledger/LedgerData';
-import { presetLedgerFilter } from '../ledger/LedgerPage';
+import { presetLedgerFilter } from '../ledger/ledgerFilters';
 import { ExpenseRow } from '../ledger/rows';
 import { ExportSheet } from '../data/ExportSheet';
 import { CategoryList, Donut } from './charts';

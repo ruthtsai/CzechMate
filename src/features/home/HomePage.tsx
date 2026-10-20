@@ -14,7 +14,7 @@ import { ResourceCard } from '../library/parts';
 import { useResourceEditors } from '../library/ResourceEditors';
 import { useEditors } from '../ledger/Editors';
 import { useLedger } from '../ledger/LedgerData';
-import { presetLedgerFilter } from '../ledger/LedgerPage';
+import { presetLedgerFilter } from '../ledger/ledgerFilters';
 
 /** Short mark for a pinned link: up to 3 Latin letters, or the first character. */
 function pinMonogram(label: string) {
