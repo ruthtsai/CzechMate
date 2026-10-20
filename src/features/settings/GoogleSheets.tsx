@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { db, getSetting, setSetting } from '../../db';
 import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets } from '../../db/sheetsSync';
 import { refreshNotes } from '../../db/handbook';
-import { buildAppsScript, generateSecret, isScriptUrl, ping, SheetsError } from '../../io/sheetsClient';
+import { buildAppsScript, DEFAULT_IMAGE_FOLDER, generateSecret, isScriptUrl, normalizeFolderPath, ping, SheetsError } from '../../io/sheetsClient';
 import { Field } from '../../components/form';
 import { useToast } from '../../components/ui';
 
@@ -29,10 +29,11 @@ const stamp = (iso?: string) => {
 export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const toast = useToast();
   const s = useLiveQuery(async () => {
-    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty'] as const;
+    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder'] as const;
     const rows = await db.settings.bulkGet([...keys]);
     return Object.fromEntries(keys.map((k, i) => [k, rows[i]?.value])) as {
       gsUrl?: string; gsSecret?: string; gsSheetUrl?: string; gsSheetName?: string; gsAutoSync?: boolean; gsLastSyncAt?: string;
+      gsImageFolder?: string; gsScriptImageFolder?: string;
       gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean;
     };
   }, []);
@@ -42,6 +43,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [showScript, setShowScript] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [folder, setFolder] = useState<string | null>(null);
 
   // Create the secret up front: iOS only allows clipboard writes directly inside the tap, with no await before it.
   useEffect(() => {
@@ -53,7 +55,33 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   if (!s) return <Header onBack={onBack} />;
 
   const linked = !!(s.gsUrl && s.gsSecret && s.gsSheetUrl);
-  const script = s.gsSecret ? buildAppsScript(s.gsSecret) : '';
+  const imageFolder = normalizeFolderPath(s.gsImageFolder ?? DEFAULT_IMAGE_FOLDER);
+  const script = s.gsSecret ? buildAppsScript(s.gsSecret, imageFolder) : '';
+  // The deployed script reports its folder on every test; a mismatch means it needs redeploying.
+  const scriptOutdated = linked && s.gsScriptImageFolder !== undefined && s.gsScriptImageFolder !== imageFolder;
+  const scriptTooOld = linked && s.gsScriptImageFolder === undefined;
+
+  async function saveFolder() {
+    const next = normalizeFolderPath(folder ?? imageFolder);
+    await setSetting('gsImageFolder', next);
+    setFolder(null);
+    toast(linked ? '已更新資料夾。請重新複製腳本，貼到 Apps Script 後部署新版本。' : '已更新資料夾。');
+  }
+
+  async function testConnection() {
+    const cfg = await getSheetsConfig();
+    if (!cfg) return;
+    setBusy('測試中…');
+    try {
+      const r = await ping(cfg);
+      await setSetting('gsScriptImageFolder', r.imageFolder ?? '');
+      toast(r.imageFolder === imageFolder ? `連線正常，圖片資料夾：${r.imageFolder}` : '連線正常，但腳本還是舊版，請重新複製腳本並部署新版本。', { ok: r.imageFolder === imageFolder });
+    } catch (e) {
+      toast(e instanceof SheetsError ? e.message : '連線失敗。', { ok: false });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function ensureSecret(rotate = false) {
     if (!s!.gsSecret || rotate) await setSetting('gsSecret', generateSecret());
@@ -78,7 +106,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
     setBusy('連線中…');
     try {
       const r = await ping({ url: u, secret });
-      await Promise.all([setSetting('gsUrl', u), setSetting('gsSheetUrl', r.spreadsheetUrl), setSetting('gsSheetName', r.name), setSetting('gsResourcesGid', r.resourcesGid), setSetting('gsLastError', ''), setSetting('gsDirty', true)]);
+      await Promise.all([setSetting('gsUrl', u), setSetting('gsSheetUrl', r.spreadsheetUrl), setSetting('gsSheetName', r.name), setSetting('gsResourcesGid', r.resourcesGid), setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsLastError', ''), setSetting('gsDirty', true)]);
       setUrl(null);
       toast(`已連線到「${r.name}」。`);
       setBusy('第一次同步中…');
@@ -154,6 +182,23 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
           )}
         </>
       )}
+
+      <div className="setgroup">
+        <h3>圖片資料夾</h3>
+        <Field label="從「我的雲端硬碟」開始的路徑，用 / 分隔" htmlFor="gs-folder">
+          <input id="gs-folder" type="text" autoCapitalize="off" autoCorrect="off" value={folder ?? imageFolder} placeholder={DEFAULT_IMAGE_FOLDER} onChange={e => setFolder(e.target.value)} />
+        </Field>
+        {folder !== null && normalizeFolderPath(folder) !== imageFolder && (
+          <button type="button" className="btn btn-secondary" onClick={saveFolder}>儲存資料夾</button>
+        )}
+        {(scriptOutdated || scriptTooOld) && (
+          <div className="hint warn">
+            雲端的腳本還沒更新到這個資料夾{s.gsScriptImageFolder ? `（目前是「${s.gsScriptImageFolder}」）` : ''}。請按下方「複製腳本」，到 Apps Script 全部取代後儲存，再「部署 › 管理部署作業 › 編輯（鉛筆）› 版本：新版本 › 部署」。網址不會變。完成後按「測試連線」。
+          </div>
+        )}
+        <p className="muted tiny" style={{ margin: 0 }}>資料夾不存在時，腳本會自動建立。照片直接放在最後一層資料夾裡，試算表的「圖片檔名」填檔名即可。</p>
+        {linked && <button type="button" className="btn btn-secondary" onClick={testConnection} disabled={!!busy}>測試連線</button>}
+      </div>
 
       <div className="setgroup">
         <h3>{linked ? '重新設定' : '設定步驟（約 5 分鐘）'}</h3>

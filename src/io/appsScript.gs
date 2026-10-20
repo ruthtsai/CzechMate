@@ -10,7 +10,8 @@ const PROTOCOL = 1;
 const LEDGER_SHEETS = ['支出總表', '換匯紀錄', '月份×類別', '旅程彙總', '付款方式彙總'];
 const RESOURCE_SHEET = '資源';
 const RESOURCE_HEADERS = ['ID', '標題', '類型', '階段', '網址', '內容', '標籤', '圖片檔名', '釘選', '常用連結名稱'];
-const IMAGE_FOLDER = 'CzechMate 圖片';
+// Folder for images, from "My Drive"; set in the app (設定 › Google 試算表) and filled in when copying the script.
+const IMAGE_FOLDER_PATH = '__CZECHMATE_IMAGE_FOLDER__';
 const FORMATS = { date: 'yyyy/mm/dd', datetime: 'yyyy/mm/dd hh:mm', twd: '#,##0', amount: '#,##0.00', rate: '0.000000', int: '0' };
 
 function doGet() {
@@ -36,7 +37,7 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     switch (req.action) {
       case 'ping':
-        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId() });
+        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH });
       case 'sync':
         return json_(syncLedger_(ss, req.sheets || []));
       case 'getResources':
@@ -195,9 +196,14 @@ function appendResource_(ss, res) {
 
 /* ---------- 雲端硬碟圖片 ---------- */
 
+/** Walks IMAGE_FOLDER_PATH (e.g. "計畫/CzechMate/CzechMate 圖片") from My Drive, creating missing folders. */
 function imageFolder_() {
-  var it = DriveApp.getFoldersByName(IMAGE_FOLDER);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(IMAGE_FOLDER);
+  var folder = DriveApp.getRootFolder();
+  IMAGE_FOLDER_PATH.split('/').map(function (p) { return p.trim(); }).filter(String).forEach(function (part) {
+    var it = folder.getFoldersByName(part);
+    folder = it.hasNext() ? it.next() : folder.createFolder(part);
+  });
+  return folder;
 }
 
 function fileByName_(folder, name) {

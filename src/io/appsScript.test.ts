@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildAppsScript, callScript, generateSecret, isScriptUrl, sheetRowLink, SheetsError } from './sheetsClient';
+import { buildAppsScript, callScript, generateSecret, isScriptUrl, normalizeFolderPath, sheetRowLink, SheetsError } from './sheetsClient';
 
 /* ---------- a small in-memory stand-in for the Apps Script services ---------- */
 
@@ -41,9 +41,9 @@ class FakeSheet {
   appendRow(row: unknown[]) { this.cells.push([...row]); }
 }
 
-function makeEnv(secret: string) {
+function makeEnv(secret: string, imageFolder?: string) {
   const sheets: FakeSheet[] = [new FakeSheet('我的分析', 0)];
-  const files: { name: string; id: string; bytes: string; mime: string }[] = [];
+  const files: { name: string; id: string; bytes: string; mime: string; folder: string }[] = [];
   const ss = {
     getUrl: () => 'https://docs.google.com/spreadsheets/d/TEST/edit',
     getName: () => 'CzechMate 測試',
@@ -55,11 +55,22 @@ function makeEnv(secret: string) {
     getId: () => f.id, getName: () => f.name, getLastUpdated: () => new Date('2027-01-01T00:00:00Z'),
     getBlob: () => ({ getContentType: () => f.mime, getBytes: () => f.bytes })
   });
-  const folder = {
-    getFilesByName: (n: string) => iter(files.filter(f => f.name === n).map(fileObj)),
-    getFiles: () => iter(files.map(fileObj)),
-    createFile: (b: { name: string; bytes: string; mime: string }) => { const f = { ...b, id: `file-${files.length}` }; files.push(f); return fileObj(f); }
+  // Folders form a tree under My Drive; `files` holds the files of whichever folder the script writes to.
+  interface FakeFolder { name: string; children: FakeFolder[]; getFoldersByName: (n: string) => unknown; createFolder: (n: string) => FakeFolder; getFilesByName: (n: string) => unknown; getFiles: () => unknown; createFile: (b: { name: string; bytes: string; mime: string }) => unknown }
+  const made: string[] = [];
+  const makeFolder = (name: string, path: string): FakeFolder => {
+    const f: FakeFolder = {
+      name,
+      children: [],
+      getFoldersByName: (n: string) => iter(f.children.filter(c => c.name === n)),
+      createFolder: (n: string) => { const c = makeFolder(n, path ? `${path}/${n}` : n); made.push(path ? `${path}/${n}` : n); f.children.push(c); return c; },
+      getFilesByName: (n: string) => iter(files.filter(x => x.folder === path && x.name === n).map(fileObj)),
+      getFiles: () => iter(files.filter(x => x.folder === path).map(fileObj)),
+      createFile: (b: { name: string; bytes: string; mime: string }) => { const x = { ...b, id: `file-${files.length}`, folder: path }; files.push(x); return fileObj(x); }
+    };
+    return f;
   };
+  const root = makeFolder('我的雲端硬碟', '');
   let uuid = 0;
   const globals = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss },
@@ -73,15 +84,15 @@ function makeEnv(secret: string) {
       formatDate: (d: Date) => d.toISOString().slice(0, 10)
     },
     Session: { getScriptTimeZone: () => 'Europe/Prague' },
-    DriveApp: { getFoldersByName: () => iter([folder]), createFolder: () => folder }
+    DriveApp: { getRootFolder: () => root }
   };
-  const src = buildAppsScript(secret);
+  const src = buildAppsScript(secret, imageFolder);
   const api = new Function(...Object.keys(globals), `${src}\nreturn { doPost, doGet };`)(...Object.values(globals)) as {
     doPost: (e: unknown) => { text: string };
     doGet: () => { text: string };
   };
   const post = (body: object) => JSON.parse(api.doPost({ postData: { contents: JSON.stringify({ app: 'CzechMate', protocol: 1, secret, ...body }) } }).text);
-  return { sheets, files, post, api, sheet: (n: string) => sheets.find(s => s.name === n)! };
+  return { sheets, files, made, root, post, api, sheet: (n: string) => sheets.find(s => s.name === n)! };
 }
 
 describe('Apps Script', () => {
@@ -152,6 +163,25 @@ describe('Apps Script', () => {
     const again = env.post({ action: 'getImages', names: ['a.jpg'], known: { 'a.jpg': { id: 'file-0', modified: up.modified } } });
     expect(again.images[0]).toMatchObject({ unchanged: true });
     expect(again.images[0].base64).toBeUndefined();
+  });
+});
+
+describe('image folder path', () => {
+  it('walks the configured path from My Drive, creating missing folders once', () => {
+    const env = makeEnv('s', '我的雲端硬碟/2026_CTU交換學生計畫/CzechMate/CzechMate 圖片');
+    expect(env.post({ action: 'ping' }).imageFolder).toBe('2026_CTU交換學生計畫/CzechMate/CzechMate 圖片');
+    env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'AAA' });
+    env.post({ action: 'uploadImage', name: 'b.jpg', mime: 'image/jpeg', base64: 'BBB' });
+    expect(env.made).toEqual(['2026_CTU交換學生計畫', '2026_CTU交換學生計畫/CzechMate', '2026_CTU交換學生計畫/CzechMate/CzechMate 圖片']);
+    expect(env.files.map(f => f.folder)).toEqual(['2026_CTU交換學生計畫/CzechMate/CzechMate 圖片', '2026_CTU交換學生計畫/CzechMate/CzechMate 圖片']);
+    expect(env.post({ action: 'getImages', names: ['b.jpg'], known: {} }).images[0].base64).toBe('b64:decoded:BBB');
+  });
+
+  it('defaults to a top-level CzechMate 圖片 folder and escapes quotes', () => {
+    expect(makeEnv('s').post({ action: 'ping' }).imageFolder).toBe('CzechMate 圖片');
+    expect(buildAppsScript('s', "Tom's/圖片")).toContain("const IMAGE_FOLDER_PATH = 'Tom\\'s/圖片';");
+    expect(normalizeFolderPath(' My Drive / a //b ')).toBe('a/b');
+    expect(normalizeFolderPath('')).toBe('CzechMate 圖片');
   });
 });
 

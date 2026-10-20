@@ -23,8 +23,24 @@ export function generateSecret(length = 32): string {
   return [...bytes].map(b => SECRET_CHARS[b % SECRET_CHARS.length]).join('');
 }
 
-/** The script to paste into the spreadsheet, with this phone's secret filled in. */
-export const buildAppsScript = (secret: string) => scriptSource.replace('__CZECHMATE_SECRET__', secret);
+export const DEFAULT_IMAGE_FOLDER = 'CzechMate 圖片';
+
+/** Cleans a folder path typed by the user: "我的雲端硬碟/" prefix, extra slashes and spaces removed. */
+export function normalizeFolderPath(path: string): string {
+  return path
+    .replace(/^\s*(我的雲端硬碟|My Drive)\s*\//i, '')
+    .split('/')
+    .map(p => p.trim())
+    .filter(Boolean)
+    .join('/') || DEFAULT_IMAGE_FOLDER;
+}
+
+/** The script to paste into the spreadsheet, with this phone's secret and image folder filled in. */
+export const buildAppsScript = (secret: string, imageFolder = DEFAULT_IMAGE_FOLDER) =>
+  scriptSource
+    .replace('__CZECHMATE_SECRET__', secret)
+    // The path goes inside a single-quoted string in the script.
+    .replace('__CZECHMATE_IMAGE_FOLDER__', () => normalizeFolderPath(imageFolder).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 
 export const isScriptUrl = (url: string) => /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(url.trim());
 
@@ -56,7 +72,7 @@ export async function callScript<T extends object>(cfg: SheetsConfig, action: st
   return data as T;
 }
 
-export interface PingResult { spreadsheetUrl: string; name: string; resourcesGid: number }
+export interface PingResult { spreadsheetUrl: string; name: string; resourcesGid: number; imageFolder?: string }
 export const ping = (cfg: SheetsConfig, f?: Fetch) => callScript<PingResult>(cfg, 'ping', {}, f);
 
 export const pushLedger = (cfg: SheetsConfig, sheets: SheetData[], f?: Fetch) =>
