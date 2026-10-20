@@ -5,6 +5,8 @@ import { formatAmount, formatRate, formatTwd } from '../../domain/format';
 import { useLedger } from './LedgerData';
 
 export const catColor = (n: number | undefined) => `var(--cat${n ?? 10})`;
+/** Readable text colour on a category colour (tokens.css). */
+export const catInk = (n: number | undefined) => `var(--cat${n ?? 10}-ink)`;
 
 export function ExpenseRow({ e, onClick }: { e: Expense; onClick: () => void }) {
   const L = useLedger();
@@ -13,7 +15,7 @@ export function ExpenseRow({ e, onClick }: { e: Expense; onClick: () => void }) 
   const trip = e.tripId ? L.trip(e.tripId) : undefined;
   return (
     <button type="button" className="row" onClick={onClick}>
-      <span className="caticon" style={{ background: catColor(cat?.color) }} aria-hidden="true">{cat?.name.slice(0, 1) ?? '?'}</span>
+      <span className="caticon" style={{ background: catColor(cat?.color), color: catInk(cat?.color) }} aria-hidden="true">{cat?.name.slice(0, 1) ?? '?'}</span>
       <span className="main">
         <span className="t">{e.itemName || cat?.name || '支出'}</span>
         <span className="m">
@@ -41,7 +43,7 @@ export function ExchangeRow({ x, onClick }: { x: Exchange; onClick: () => void }
   const calc = L.money.exchanges.get(x.id);
   return (
     <button type="button" className="row" onClick={onClick}>
-      <span className="caticon" style={{ background: 'var(--cat2)' }} aria-hidden="true">⇄</span>
+      <span className="caticon" style={{ background: 'var(--cat2)', color: 'var(--cat2-ink)' }} aria-hidden="true">⇄</span>
       <span className="main">
         <span className="t num">
           {formatAmount(x.outAmount, x.outCurrency)} {x.outCurrency} → {formatAmount(x.inAmount, x.inCurrency)} {x.inCurrency}

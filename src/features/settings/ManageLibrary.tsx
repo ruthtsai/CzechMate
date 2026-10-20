@@ -5,6 +5,8 @@ import { deleteTag, importDrafts, renameTag, reorderPins, setPinned, updatePin }
 import { tagCounts } from '../../domain/search';
 import { parseResourceCsv, type ImportPreview } from '../../io/csvImport';
 import { compressImage, type Compressed } from '../../io/images';
+import { getSheetsConfig, queueForSheet } from '../../db/sheetsSync';
+import { requestSheetsSync } from '../sync/SyncManager';
 import { Field } from '../../components/form';
 import { Seg, useToast } from '../../components/ui';
 
@@ -83,8 +85,8 @@ export function ManageTags({ onBack }: { onBack: () => void }) {
     if (!editing) return;
     const merging = editing.to.trim() !== editing.from && tags.some(([t]) => t === editing.to.trim());
     try {
-      await renameTag(editing.from, editing.to);
-      toast(merging ? `已合併到「${editing.to.trim()}」。` : '已改名。');
+      const skipped = await renameTag(editing.from, editing.to);
+      toast((merging ? `已合併到「${editing.to.trim()}」。` : '已改名。') + (skipped ? `來自試算表的 ${skipped} 筆請在試算表修改。` : ''));
       setEditing(null);
     } catch (e) {
       toast((e as Error).message, { ok: false });
@@ -113,7 +115,7 @@ export function ManageTags({ onBack }: { onBack: () => void }) {
               <div className="editrow" key={t}>
                 <span className="name"><span>從 {n} 筆資源移除「{t}」？</span></span>
                 <button type="button" className="mini" onClick={() => setConfirmDelete(null)}>取消</button>
-                <button type="button" className="mini" style={{ color: 'var(--error)' }} onClick={async () => { await deleteTag(t); setConfirmDelete(null); toast('已刪除標籤。'); }}>刪除</button>
+                <button type="button" className="mini" style={{ color: 'var(--error)' }} onClick={async () => { const skipped = await deleteTag(t); setConfirmDelete(null); toast(skipped ? `已刪除；來自試算表的 ${skipped} 筆請在試算表修改。` : '已刪除標籤。'); }}>刪除</button>
               </div>
             ) : (
               <div className="editrow" key={t}>
@@ -165,8 +167,13 @@ export function ImportResources({ onBack }: { onBack: () => void }) {
         compressed.set(f.name, await compressImage(f));
       }
       setBusy('寫入資料…');
-      const n = await importDrafts(drafts, compressed);
-      toast(`已匯入 ${n} 筆資源。`);
+      const ids = await importDrafts(drafts, compressed);
+      // With a linked sheet, imported resources go to the sheet like anything added in the app.
+      if (await getSheetsConfig()) {
+        await queueForSheet(ids);
+        requestSheetsSync();
+        toast(`已匯入 ${ids.length} 筆資源，正在寫入試算表。`);
+      } else toast(`已匯入 ${ids.length} 筆資源。`);
       setPreview(null);
       onBack();
     } catch {

@@ -75,27 +75,34 @@ export async function reorderPins(ids: string[]) {
 
 /* ---------- tags ---------- */
 
-/** Renames a tag everywhere; renaming onto an existing tag merges the two. */
-export async function renameTag(from: string, to: string) {
+/**
+ * Renames a tag; renaming onto an existing tag merges the two. Resources that come from the Google Sheet
+ * are left alone (the next update would undo the change); returns how many of those were skipped.
+ */
+export async function renameTag(from: string, to: string): Promise<number> {
   to = to.trim();
   if (!to) throw new Error('請輸入標籤名稱。');
-  await db.transaction('rw', db.resources, async () => {
+  return db.transaction('rw', db.resources, async () => {
     const list = await db.resources.where('tags').equals(from).toArray();
-    await Promise.all(list.map(r => db.resources.update(r.id, { tags: [...new Set(r.tags.map(t => (t === from ? to : t)))] })));
+    const editable = list.filter(r => r.source !== 'sheet');
+    await Promise.all(editable.map(r => db.resources.update(r.id, { tags: [...new Set(r.tags.map(t => (t === from ? to : t)))] })));
+    return list.length - editable.length;
   });
 }
 
-export async function deleteTag(tag: string) {
-  await db.transaction('rw', db.resources, async () => {
+export async function deleteTag(tag: string): Promise<number> {
+  return db.transaction('rw', db.resources, async () => {
     const list = await db.resources.where('tags').equals(tag).toArray();
-    await Promise.all(list.map(r => db.resources.update(r.id, { tags: r.tags.filter(t => t !== tag) })));
+    const editable = list.filter(r => r.source !== 'sheet');
+    await Promise.all(editable.map(r => db.resources.update(r.id, { tags: r.tags.filter(t => t !== tag) })));
+    return list.length - editable.length;
   });
 }
 
 /* ---------- CSV import ---------- */
 
 /** Writes the chosen drafts in one transaction; nothing is written if any step fails (requirements spec 6.1). */
-export async function importDrafts(drafts: ImportDraft[], images: Map<string, Compressed>): Promise<number> {
+export async function importDrafts(drafts: ImportDraft[], images: Map<string, Compressed>): Promise<string[]> {
   const t = now();
   return db.transaction('rw', db.resources, db.images, async () => {
     let order = await nextPinOrder();
@@ -115,6 +122,6 @@ export async function importDrafts(drafts: ImportDraft[], images: Map<string, Co
     });
     if (imageRows.length) await db.images.bulkAdd(imageRows);
     await db.resources.bulkAdd(resources);
-    return resources.length;
+    return resources.map(r => r.id);
   });
 }

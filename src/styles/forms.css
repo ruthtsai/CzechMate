@@ -85,6 +85,6 @@
 .editrow .name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .editrow .name small { color: var(--text-secondary); font-size: 12px; }
 .editrow.off .name > span { color: var(--text-secondary); text-decoration: line-through; }
-.mini { min-width: 36px; height: 36px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--text-primary); }
+.mini { min-width: 40px; height: 40px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--text-primary); }
 .mini:disabled { opacity: 0.35; }
 .backbtn { border: 0; background: none; color: var(--primary); font-size: 16px; min-height: 44px; padding: 0 4px; }

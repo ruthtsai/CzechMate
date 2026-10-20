@@ -17,7 +17,7 @@
   --travel-cream: #F7F1E7;
   --travel-coffee: #493A32;
   --success: #18794E;
-  --warning: #986A12;
+  --warning: #8A5F10;
   --warning-surface: #F6ECD4;
   --error: #B93838;
   --info: #326DA8;
@@ -27,6 +27,9 @@
 
   --cat1: #344E41; --cat2: #8C9C72; --cat3: #A64B3C; --cat4: #C9A87F; --cat5: #493A32;
   --cat6: #326DA8; --cat7: #986A12; --cat8: #6F8F87; --cat9: #B7705C; --cat10: #9A9A8E;
+  /* Text on category colours, chosen per colour for at least 4.3:1 contrast */
+  --cat1-ink: #FFFFFF; --cat2-ink: #17211B; --cat3-ink: #FFFFFF; --cat4-ink: #17211B; --cat5-ink: #FFFFFF;
+  --cat6-ink: #FFFFFF; --cat7-ink: #FFFFFF; --cat8-ink: #17211B; --cat9-ink: #17211B; --cat10-ink: #17211B;
 
   --font: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   --r-card: 14px;
@@ -48,6 +51,8 @@
     --mark: #5A5230; --scrim: rgba(0, 0, 0, 0.6); --shadow: rgba(0, 0, 0, 0.5);
     --cat1: #A3B18A; --cat2: #6F9A6E; --cat3: #E08A76; --cat4: #D8BFA0; --cat5: #C29B83;
     --cat6: #8CBDF0; --cat7: #E5C16B; --cat8: #8FB8AE; --cat9: #D7A08C; --cat10: #8E968C;
+    --cat1-ink: #17211B; --cat2-ink: #17211B; --cat3-ink: #17211B; --cat4-ink: #17211B; --cat5-ink: #17211B;
+    --cat6-ink: #17211B; --cat7-ink: #17211B; --cat8-ink: #17211B; --cat9-ink: #17211B; --cat10-ink: #17211B;
     color-scheme: dark;
   }
 }
@@ -62,5 +67,7 @@
   --mark: #5A5230; --scrim: rgba(0, 0, 0, 0.6); --shadow: rgba(0, 0, 0, 0.5);
   --cat1: #A3B18A; --cat2: #6F9A6E; --cat3: #E08A76; --cat4: #D8BFA0; --cat5: #C29B83;
   --cat6: #8CBDF0; --cat7: #E5C16B; --cat8: #8FB8AE; --cat9: #D7A08C; --cat10: #8E968C;
+  --cat1-ink: #17211B; --cat2-ink: #17211B; --cat3-ink: #17211B; --cat4-ink: #17211B; --cat5-ink: #17211B;
+  --cat6-ink: #17211B; --cat7-ink: #17211B; --cat8-ink: #17211B; --cat9-ink: #17211B; --cat10-ink: #17211B;
   color-scheme: dark;
 }

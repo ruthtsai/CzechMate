@@ -32,10 +32,12 @@ describe('planPull', () => {
   it('reports invalid and duplicate rows and leaves app or pending records alone', () => {
     const p = planPull(
       [row(2, { ID: 'a', 標題: '' }), row(3, { ID: 'b', 標題: 'ok' }), row(4, { ID: 'b', 標題: 'dup' })],
-      [res('local', { source: 'app' }), res('waiting', { source: 'pending' })]
+      [res('local', { source: 'app' }), res('waiting', { source: 'pending' }), res('a', { source: 'sheet', title: '原本的標題' })]
     );
     expect(p.errors).toEqual([{ line: 2, message: '標題是空白的。' }, { line: 4, message: 'ID 與上面的列重複，請刪除這格讓腳本重新產生。' }]);
+    // Row 2 has a mistake: its record stays as it was instead of being removed.
     expect(p.remove).toEqual([]);
+    expect(p.put.map(r => r.id)).toEqual(['b']);
   });
 });
 

@@ -12,6 +12,7 @@ import { useEditors } from './Editors';
 import { useLedger } from './LedgerData';
 import { ExchangeRow, ExpenseRow } from './rows';
 
+const PAGE = 300;
 const SEGMENTS = [['expenses', '支出'], ['exchanges', '換匯']] as const;
 const PERIODS: [Period, string][] = [['week', '本週'], ['month', '本月'], ['all', '全部'], ['custom', '自訂']];
 
@@ -56,11 +57,18 @@ export function LedgerPage() {
     return () => window.removeEventListener('czechmate-reveal', check);
   });
 
+  // Draw rows in pages so a semester of expenses does not slow the screen down.
+  const [limit, setLimit] = useState(PAGE);
+  useEffect(() => setLimit(PAGE), [f]);
   const days = useMemo(() => {
     const m = new Map<string, typeof list>();
-    for (const e of list) m.set(e.date, [...(m.get(e.date) ?? []), e]);
+    for (const e of list.slice(0, limit)) {
+      const day = m.get(e.date);
+      if (day) day.push(e);
+      else m.set(e.date, [e]);
+    }
     return [...m.entries()];
-  }, [list]);
+  }, [list, limit]);
 
   const sum = summarize(list, L.money.expenses);
   const travelTrips = L.trips;
@@ -160,6 +168,12 @@ export function LedgerPage() {
               </section>
             );
           })
+        )}
+
+        {list.length > limit && (
+          <button type="button" className="btn btn-secondary btn-block" onClick={() => setLimit(l => l + PAGE)}>
+            再顯示 {Math.min(PAGE, list.length - limit)} 筆（還有 {list.length - limit} 筆）
+          </button>
         )}
 
         <div className="fab-spacer" />

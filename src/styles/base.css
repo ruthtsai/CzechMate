@@ -45,7 +45,7 @@ img { max-width: 100%; }
 .section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .sec-h h2 { font-size: 18px; font-weight: 600; margin: 0; }
-.linkbtn { font-size: 13px; color: var(--primary); background: none; border: 0; padding: 6px 0; min-height: 32px; }
+.linkbtn { font-size: 13px; color: var(--primary); background: none; border: 0; padding: 6px 4px; min-height: 40px; }
 
 .tabbar {
   position: sticky; bottom: 0; z-index: 5;

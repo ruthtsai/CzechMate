@@ -59,6 +59,14 @@ describe('tags', () => {
     await mod.deleteTag('電信');
     expect((await dbm.db.resources.toArray()).flatMap(r => r.tags)).toEqual(['Vodafone']);
   });
+
+  it('leaves resources from the Google Sheet alone and reports them', async () => {
+    const id = await mod.saveResource({ ...base, title: '試算表的', tags: ['交通'] }, { source: 'sheet' });
+    await mod.saveResource({ ...base, title: 'App 的', tags: ['交通'] });
+    expect(await mod.renameTag('交通', '運輸')).toBe(1);
+    expect((await dbm.db.resources.get(id))?.tags).toEqual(['交通']);
+    expect(await mod.deleteTag('交通')).toBe(1);
+  });
 });
 
 describe('importDrafts', () => {
@@ -66,11 +74,11 @@ describe('importDrafts', () => {
     const draft = (title: string, extra: Partial<ImportDraft> = {}): ImportDraft => ({
       line: 2, title, type: 'note', stage: 'any', url: '', content: '', tags: [], imageNames: [], pinned: false, warnings: [], ...extra
     });
-    const count = await mod.importDrafts(
+    const ids = await mod.importDrafts(
       [draft('KOS', { url: 'https://kos.cvut.cz', pinned: true }), draft('截圖', { imageNames: ['a.png', 'missing.png'] })],
       new Map([['a.png', img()]])
     );
-    expect(count).toBe(2);
+    expect(ids).toHaveLength(2);
     const shot = (await dbm.db.resources.filter(r => r.title === '截圖').first())!;
     expect(shot.imageIds).toHaveLength(1);
     expect((await dbm.db.resources.filter(r => r.title === 'KOS').first())?.pinOrder).toBe(1);

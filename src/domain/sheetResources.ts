@@ -32,11 +32,11 @@ export function planPull(rows: SheetRowIn[], existing: Resource[], now = new Dat
       continue;
     }
     const r = rowToDraft(values, row);
+    seen.add(id); // a row with a mistake keeps its last good version in the app instead of disappearing
     if (!r.draft) {
       plan.errors.push({ line: row, message: r.error! });
       continue;
     }
-    seen.add(id);
     const d = r.draft;
     const old = byId.get(id);
     const next: Resource = {
