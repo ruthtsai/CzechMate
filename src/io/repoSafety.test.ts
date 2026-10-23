@@ -29,6 +29,7 @@ describe('repo and deployment security (S-03, S-06)', () => {
     expect(ignore).toContain('CzechMate_備份_*.json');
     expect(ignore).toContain('*_Spec.md');
     expect(ignore).toContain('CzechMate_Next_Phase.md');
+    expect(ignore).toContain('資料整理/');
   });
 
   it('never tracks spec files, backups, Excel exports or real Apps Script URLs (S-06)', () => {
@@ -39,7 +40,7 @@ describe('repo and deployment security (S-03, S-06)', () => {
       tracked = [];
     }
     for (const file of tracked) {
-      expect(file).not.toMatch(/_Spec\.md$|^CzechMate_Next_Phase\.md$|\.xlsx$|^CzechMate_備份_.*\.json$/);
+      expect(file).not.toMatch(/_Spec\.md$|^CzechMate_Next_Phase\.md$|\.xlsx$|^CzechMate_備份_.*\.json$|^資料整理\//);
     }
 
     const prodFiles = [...walkFiles('src'), ...walkFiles('public')].filter(f => !f.endsWith('.test.ts') && /\.(ts|tsx|gs|html|json|csv)$/.test(f));
