@@ -28,12 +28,26 @@ purifier?.addHook('afterSanitizeAttributes', node => {
     }
     // In-page anchors stay; everything else opens outside the app.
     if (href && !href.startsWith('#')) {
-      node.setAttribute('target', '_blank');
-      node.setAttribute('rel', 'noopener noreferrer');
+      if ((href.includes(':') || href.startsWith('//')) && !/^(https?:|mailto:)/i.test(href)) {
+        node.removeAttribute('href');
+      } else {
+        node.setAttribute('target', '_blank');
+        node.setAttribute('rel', 'noopener noreferrer');
+      }
     }
   }
   if (node.tagName === 'IMG') {
+    let src = node.getAttribute('src') ?? '';
+    if (currentBase && src.startsWith('/') && !src.startsWith('//')) {
+      src = new URL(src, currentBase).toString();
+      node.setAttribute('src', src);
+    }
+    // External images must use HTTPS; protocol-relative, HTTP, or data/script URLs are stripped.
+    if ((src.includes(':') || src.startsWith('//')) && !/^https:\/\//i.test(src)) {
+      node.removeAttribute('src');
+    }
     node.setAttribute('loading', 'lazy');
+    node.setAttribute('decoding', 'async');
     node.setAttribute('referrerpolicy', 'no-referrer');
   }
 });

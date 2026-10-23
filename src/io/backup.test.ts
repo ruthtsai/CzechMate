@@ -73,6 +73,30 @@ describe('backup and restore', () => {
     expect(b).toMatchObject({ app: 'CzechMate', schemaVersion: 1 });
     expect(b.exportedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
   });
+
+  it('excludes Google Sheets credentials by default (S-01) and preserves local ones on restore unless opted in', async () => {
+    const src = fresh();
+    await src.settings.bulkPut([
+      { key: 'theme', value: 'dark' },
+      { key: 'gsUrl', value: 'https://script.google.com/macros/s/AKfy_test/exec' },
+      { key: 'gsSecret', value: 'super-secret-key-32-characters-xx' }
+    ]);
+    const safeBackup = await createBackup(src);
+    expect(safeBackup.data.settings).toEqual([{ key: 'theme', value: 'dark' }]);
+
+    const fullBackup = await createBackup(src, { includeSecrets: true });
+    expect(fullBackup.data.settings).toHaveLength(3);
+
+    // Restoring a secret-free backup on a linked phone keeps the phone's existing secret.
+    const dst = fresh();
+    await dst.settings.bulkPut([
+      { key: 'gsUrl', value: 'https://script.google.com/macros/s/AKfy_local/exec' },
+      { key: 'gsSecret', value: 'local-secret' }
+    ]);
+    await restoreBackup(dst, parseBackup(JSON.stringify(safeBackup)));
+    expect((await dst.settings.get('gsSecret'))?.value).toBe('local-secret');
+    expect((await dst.settings.get('theme'))?.value).toBe('dark');
+  });
 });
 
 describe('parseBackup', () => {
@@ -82,5 +106,13 @@ describe('parseBackup', () => {
   });
   it('rejects backups from a newer version', () => {
     expect(() => parseBackup('{"app":"CzechMate","schemaVersion":99,"data":{}}')).toThrow('較新版本');
+  });
+  it('rejects unsafe URLs in resources or settings', () => {
+    expect(() =>
+      parseBackup(JSON.stringify({ app: 'CzechMate', schemaVersion: 1, data: { resources: [{ id: '1', url: 'javascript:alert(1)' }] } }))
+    ).toThrow('資源網址');
+    expect(() =>
+      parseBackup(JSON.stringify({ app: 'CzechMate', schemaVersion: 1, data: { settings: [{ key: 'gsUrl', value: 'https://evil.example/exec' }] } }))
+    ).toThrow('試算表腳本網址');
   });
 });

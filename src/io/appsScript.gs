@@ -13,22 +13,33 @@ const RESOURCE_HEADERS = ['ID', '標題', '類型', '階段', '網址', '內容'
 // Folder for images, from "My Drive"; set in the app (設定 › Google 試算表) and filled in when copying the script.
 const IMAGE_FOLDER_PATH = '__CZECHMATE_IMAGE_FOLDER__';
 const FORMATS = { date: 'yyyy/mm/dd', datetime: 'yyyy/mm/dd hh:mm', twd: '#,##0', amount: '#,##0.00', rate: '0.000000', int: '0' };
+const MAX_PAYLOAD_CHARS = 10 * 1024 * 1024;
+const MAX_IMAGE_BASE64 = 7 * 1024 * 1024;
+const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_FAILS = 10;
 
 function doGet() {
   return json_({ ok: true, app: 'CzechMate', message: 'CzechMate 同步端點已啟用。請在 App 的設定貼上這個網址。' });
 }
 
 function doPost(e) {
+  var raw = e && e.postData && e.postData.contents;
+  if (typeof raw !== 'string' || raw.length > MAX_PAYLOAD_CHARS) {
+    return json_({ ok: false, error: 'protocol', message: '請求內容過大或無效。' });
+  }
   var req;
   try {
-    req = JSON.parse(e.postData.contents);
+    req = JSON.parse(raw);
   } catch (err) {
     return json_({ ok: false, error: 'protocol', message: '無法讀取請求內容。' });
   }
   if (!req || req.app !== 'CzechMate' || req.protocol !== PROTOCOL) {
     return json_({ ok: false, error: 'protocol', message: 'App 與腳本版本不符，請在 App 重新複製腳本並部署新版本。' });
   }
+  // The right secret always gets through, so strangers guessing cannot lock the phone out.
   if (!safeEqual_(String(req.secret || ''), SECRET)) {
+    if (isRateLimited_()) return json_({ ok: false, error: 'secret', message: '金鑰錯誤次數過多，請稍後再試。' });
+    recordFailedSecret_();
     return json_({ ok: false, error: 'secret', message: '同步金鑰不正確。' });
   }
   var lock = LockService.getScriptLock();
@@ -69,6 +80,32 @@ function safeEqual_(a, b) {
   return diff === 0;
 }
 
+function isRateLimited_() {
+  if (typeof CacheService === 'undefined') return false;
+  var cache = CacheService.getScriptCache();
+  return cache ? Number(cache.get('cm_fail_count') || '0') >= MAX_FAILS : false;
+}
+
+function recordFailedSecret_() {
+  if (typeof CacheService !== 'undefined') {
+    var cache = CacheService.getScriptCache();
+    if (cache) {
+      var n = Number(cache.get('cm_fail_count') || '0') + 1;
+      cache.put('cm_fail_count', String(n), 600);
+    }
+  }
+  if (typeof PropertiesService !== 'undefined') {
+    var props = PropertiesService.getScriptProperties();
+    if (props) props.setProperty('lastFailedSecretAt', new Date().toISOString());
+  }
+}
+
+/** Prevents spreadsheet formula injection when a text field begins with =, +, -, or @. */
+function safeText_(s) {
+  var str = String(s);
+  return /^[=+\-@\t\r]/.test(str) ? "'" + str : str;
+}
+
 /* ---------- 記帳：整張覆寫五個工作表，不碰其他工作表 ---------- */
 
 function toCell_(v, type) {
@@ -78,6 +115,7 @@ function toCell_(v, type) {
     return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
   }
   if (type === 'datetime' && typeof v === 'string') return new Date(v);
+  if (typeof v === 'string') return safeText_(v);
   return v;
 }
 
@@ -188,7 +226,7 @@ function appendResource_(ss, res) {
   for (var c = 0; c < width; c++) row.push('');
   Object.keys(cols).forEach(function (h) {
     if (h === 'ID') row[cols[h]] = id;
-    else if (res[h] !== undefined) row[cols[h]] = String(res[h]);
+    else if (res[h] !== undefined) row[cols[h]] = safeText_(res[h]);
   });
   sh.appendRow(row);
   return { ok: true, id: id, row: sh.getLastRow() };
@@ -212,11 +250,14 @@ function fileByName_(folder, name) {
 }
 
 function uploadImage_(name, mime, base64) {
-  if (!name || !base64) return { ok: false, error: 'exception', message: '缺少圖片內容。' };
+  var cleanName = String(name || '').replace(/[\\/]/g, '_').trim();
+  if (!cleanName || !base64) return { ok: false, error: 'exception', message: '缺少圖片內容。' };
+  if (base64.length > MAX_IMAGE_BASE64) return { ok: false, error: 'exception', message: '圖片檔案過大。' };
+  if (ALLOWED_MIMES.indexOf(mime) < 0) return { ok: false, error: 'exception', message: '不支援的圖片格式。' };
   var folder = imageFolder_();
-  var file = fileByName_(folder, name);
-  if (!file) file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(base64), mime, name));
-  return { ok: true, name: name, id: file.getId(), modified: file.getLastUpdated().toISOString() };
+  var file = fileByName_(folder, cleanName);
+  if (!file) file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(base64), mime, cleanName));
+  return { ok: true, name: cleanName, id: file.getId(), modified: file.getLastUpdated().toISOString() };
 }
 
 function getImages_(names, known) {

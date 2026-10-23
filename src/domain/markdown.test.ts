@@ -109,4 +109,11 @@ describe('HackMD image sizes', () => {
     expect(html).toMatch(/<img[^>]*src="https:\/\/hackmd.io\/_uploads\/a.jpg"/);
     expect(html).toContain('alt="票"');
   });
+
+  it('strips non-HTTPS external image sources and resolves site-relative images', () => {
+    const html = renderMarkdown('![ok](/_uploads/a.png) ![bad](http://insecure.example/a.png) ![proto](//evil.example/a.png)', 'https://hackmd.io');
+    expect(html).toContain('src="https://hackmd.io/_uploads/a.png"');
+    expect(html).not.toContain('insecure.example');
+    expect(html).not.toContain('evil.example');
+  });
 });

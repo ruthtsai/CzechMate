@@ -38,7 +38,7 @@ export function normalizeFolderPath(path: string): string {
 /** The script to paste into the spreadsheet, with this phone's secret and image folder filled in. */
 export const buildAppsScript = (secret: string, imageFolder = DEFAULT_IMAGE_FOLDER) =>
   scriptSource
-    .replace('__CZECHMATE_SECRET__', secret)
+    .replace('__CZECHMATE_SECRET__', () => secret.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))
     // The path goes inside a single-quoted string in the script.
     .replace('__CZECHMATE_IMAGE_FOLDER__', () => normalizeFolderPath(imageFolder).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 
@@ -94,4 +94,6 @@ export const getImages = (cfg: SheetsConfig, names: string[], known: Record<stri
 
 /** Link that opens the 資源 sheet at a row. */
 export const sheetRowLink = (spreadsheetUrl: string, gid: number, row: number) =>
-  `${spreadsheetUrl.replace(/\/edit.*$/, '')}/edit#gid=${gid}&range=A${row}`;
+  /^https:\/\/docs\.google\.com\/spreadsheets\//.test(spreadsheetUrl)
+    ? `${spreadsheetUrl.replace(/\/edit.*$/, '')}/edit#gid=${Number(gid)}&range=A${Number(row)}`
+    : '';

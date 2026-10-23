@@ -72,6 +72,7 @@ function makeEnv(secret: string, imageFolder?: string) {
   };
   const root = makeFolder('我的雲端硬碟', '');
   let uuid = 0;
+  const cache = new Map<string, string>();
   const globals = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss },
     ContentService: { createTextOutput: (t: string) => ({ setMimeType: () => ({ text: t }) }), MimeType: { JSON: 'json' } },
@@ -84,7 +85,9 @@ function makeEnv(secret: string, imageFolder?: string) {
       formatDate: (d: Date) => d.toISOString().slice(0, 10)
     },
     Session: { getScriptTimeZone: () => 'Europe/Prague' },
-    DriveApp: { getRootFolder: () => root }
+    DriveApp: { getRootFolder: () => root },
+    CacheService: { getScriptCache: () => ({ get: (k: string) => cache.get(k) ?? null, put: (k: string, v: string) => void cache.set(k, v) }) },
+    PropertiesService: { getScriptProperties: () => ({ setProperty: () => {} }) }
   };
   const src = buildAppsScript(secret, imageFolder);
   const api = new Function(...Object.keys(globals), `${src}\nreturn { doPost, doGet };`)(...Object.values(globals)) as {
@@ -106,6 +109,13 @@ describe('Apps Script', () => {
     expect(env.post({ secret: 'wrong', action: 'sync', sheets: [] })).toMatchObject({ ok: false, error: 'secret' });
     expect(env.post({ protocol: 99, action: 'ping' })).toMatchObject({ ok: false, error: 'protocol' });
     expect(env.sheets.map(s => s.name)).toEqual(['我的分析']);
+  });
+
+  it('locks out repeated wrong secrets but always lets the right one through', () => {
+    const env = makeEnv('right');
+    for (let i = 0; i < 12; i++) env.post({ secret: 'wrong', action: 'ping' });
+    expect(env.post({ secret: 'wrong', action: 'ping' }).message).toContain('次數過多');
+    expect(env.post({ action: 'ping' })).toMatchObject({ ok: true });
   });
 
   it('answers ping with the spreadsheet link and creates the 資源 sheet', () => {
@@ -180,8 +190,28 @@ describe('image folder path', () => {
   it('defaults to a top-level CzechMate 圖片 folder and escapes quotes', () => {
     expect(makeEnv('s').post({ action: 'ping' }).imageFolder).toBe('CzechMate 圖片');
     expect(buildAppsScript('s', "Tom's/圖片")).toContain("const IMAGE_FOLDER_PATH = 'Tom\\'s/圖片';");
+    expect(buildAppsScript("sec'ret")).toContain("const SECRET = 'sec\\'ret';");
     expect(normalizeFolderPath(' My Drive / a //b ')).toBe('a/b');
     expect(normalizeFolderPath('')).toBe('CzechMate 圖片');
+  });
+
+  it('escapes formula-starting strings and validates uploaded image MIME types (S-04)', () => {
+    const env = makeEnv('s');
+    env.post({
+      action: 'sync',
+      sheets: [{ name: '支出總表', columns: [{ header: '備註', type: 'text' }], rows: [['=IMPORTXML("https://x","//a")'], ['- 一般備註']] }]
+    });
+    expect(env.sheet('支出總表').cells[1][0]).toBe('\'=IMPORTXML("https://x","//a")');
+    expect(env.sheet('支出總表').cells[2][0]).toBe("'- 一般備註");
+
+    env.post({ action: 'appendResource', resource: { ID: 'r1', 標題: '=SUM(1,2)', 內容: '+test' } });
+    expect(env.sheet('資源').cells[1][1]).toBe("'=SUM(1,2)");
+    expect(env.sheet('資源').cells[1][5]).toBe("'+test");
+
+    expect(env.post({ action: 'uploadImage', name: 'evil.html', mime: 'text/html', base64: 'AAA' })).toMatchObject({
+      ok: false,
+      error: 'exception'
+    });
   });
 });
 

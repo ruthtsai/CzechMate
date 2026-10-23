@@ -40,8 +40,10 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
   const [pendingRestore, setPendingRestore] = useState<BackupFile | null>(null);
   const [busy, setBusy] = useState(false);
   const [readyBackup, setReadyBackup] = useState<File | null>(null);
+  const [includeSecrets, setIncludeSecrets] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const sheetName = useLiveQuery(() => getSetting<string>('gsSheetName', ''), [], '');
+  const hasSheetsSecret = useLiveQuery(async () => !!(await getSetting<string>('gsUrl', '')), [], false);
   const hbSyncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
   const [hbBusy, setHbBusy] = useState<string | null>(null);
 
@@ -65,9 +67,10 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
 
   useEffect(() => {
     if (!open || !navigator.storage) return;
-    Promise.all([navigator.storage.estimate?.(), navigator.storage.persisted?.()]).then(([est, persisted]) =>
-      setStorage({ usage: est?.usage, persisted })
-    );
+    Promise.all([
+      navigator.storage.estimate?.(),
+      navigator.storage.persisted ? navigator.storage.persisted().then(p => (p ? true : navigator.storage.persist?.() ?? false)) : undefined
+    ]).then(([est, persisted]) => setStorage({ usage: est?.usage, persisted }));
   }, [open]);
 
   async function changeTheme(t: Theme) {
@@ -103,7 +106,7 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
   async function backup() {
     setBusy(true);
     try {
-      const json = JSON.stringify(await createBackup(db));
+      const json = JSON.stringify(await createBackup(db, { includeSecrets }));
       await handOver(new File([json], backupFileName(), { type: 'application/json' }));
     } catch (e) {
       toast(`暫時無法備份：${(e as Error)?.message ?? '未知錯誤'}`, { ok: false });
@@ -254,40 +257,6 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
         </div>
 
         <div className="setgroup">
-          <h3>同步</h3>
-          <div className="list">
-            <button type="button" className="row" onClick={() => setScreen('sheets')}>
-              <span className="main">
-                <span className="t">Google 試算表</span>
-                <span className="m">{sheetName ? `已連線到「${sheetName}」` : '記帳同步到試算表、從試算表讀取資源'}</span>
-              </span>
-              <span className="end">›</span>
-            </button>
-            <button type="button" className="row" onClick={syncHandbookNow} disabled={!!hbBusy}>
-              <span className="main">
-                <span className="t">同步生存手冊</span>
-                <span className="m">{hbBusy ?? (hbSyncedAt ? `上次同步：${stamp(hbSyncedAt)}` : '還沒有同步；同步後可離線搜尋')}</span>
-              </span>
-              <span className="end">›</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="setgroup">
-          <h3>資源庫</h3>
-          <div className="list">
-            <button type="button" className="row" onClick={() => setScreen('pins')}>
-              <span className="main"><span className="t">常用連結排序</span><span className="m">調整首頁連結順序與顯示名稱</span></span>
-              <span className="end">›</span>
-            </button>
-            <button type="button" className="row" onClick={() => setScreen('tags')}>
-              <span className="main"><span className="t">標籤管理</span><span className="m">改名、合併、刪除</span></span>
-              <span className="end">›</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="setgroup">
           <h3>資料</h3>
           <div className="list">
             <button type="button" className="row" onClick={downloadTemplate}>
@@ -335,6 +304,12 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
               <span className="end">›</span>
             </button>
           </div>
+          {hasSheetsSecret && (
+            <label className="check" style={{ marginTop: 4 }}>
+              <input type="checkbox" checked={includeSecrets} onChange={e => setIncludeSecrets(e.target.checked)} />
+              備份檔包含 Google 試算表同步金鑰（換手機還原時勾選；預設排除以防外洩）
+            </label>
+          )}
           <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={e => pickRestore(e.target.files?.[0])} />
         </div>
 

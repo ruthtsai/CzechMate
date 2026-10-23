@@ -44,6 +44,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const [showScript, setShowScript] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [folder, setFolder] = useState<string | null>(null);
+  const [keyRotated, setKeyRotated] = useState(false);
 
   // Create the secret up front: iOS only allows clipboard writes directly inside the tap, with no await before it.
   useEffect(() => {
@@ -75,6 +76,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
     try {
       const r = await ping(cfg);
       await setSetting('gsScriptImageFolder', r.imageFolder ?? '');
+      setKeyRotated(false);
       toast(r.imageFolder === imageFolder ? `連線正常，圖片資料夾：${r.imageFolder}` : '連線正常，但腳本還是舊版，請重新複製腳本並部署新版本。', { ok: r.imageFolder === imageFolder });
     } catch (e) {
       toast(e instanceof SheetsError ? e.message : '連線失敗。', { ok: false });
@@ -84,7 +86,10 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   }
 
   async function ensureSecret(rotate = false) {
-    if (!s!.gsSecret || rotate) await setSetting('gsSecret', generateSecret());
+    if (!s!.gsSecret || rotate) {
+      await setSetting('gsSecret', generateSecret());
+      if (rotate) setKeyRotated(true);
+    }
   }
 
   async function copyScript() {
@@ -208,7 +213,15 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
           <li>右上角「部署 › 新增部署作業」，類型選「網頁應用程式」；執行身分選「我」，存取權選「任何人」，按部署。第一次會要你授權自己的帳號（看到「Google 尚未驗證這個應用程式」時，按「進階 › 前往」）。</li>
           <li>複製「網頁應用程式」的網址（/exec 結尾），貼到下面，按「連線」。</li>
         </ol>
-        <button type="button" className="btn btn-secondary" onClick={copyScript}>複製腳本</button>
+        <div className="actions">
+          <button type="button" className="btn btn-secondary" onClick={copyScript}>複製腳本</button>
+          <button type="button" className="btn btn-secondary" onClick={async () => { await ensureSecret(true); toast('已重新產生同步金鑰。請複製新腳本並部署新版本，舊金鑰立即失效。'); }}>重新產生金鑰</button>
+        </div>
+        {keyRotated && (
+          <div className="hint warn">
+            已產生新金鑰。請按上方「複製腳本」，到 Apps Script 全部取代並儲存，再「部署 › 管理部署作業 › 編輯（鉛筆）› 版本：新版本 › 部署」，舊金鑰即會失效。
+          </div>
+        )}
         {showScript && script && (
           <textarea readOnly value={script} aria-label="腳本內容" style={{ minHeight: 160, fontFamily: 'ui-monospace, monospace', fontSize: 12, padding: 8, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' }} onFocus={e => e.currentTarget.select()} />
         )}

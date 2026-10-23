@@ -1,4 +1,6 @@
 import type { CzechMateDB } from '../db/schema';
+import { isHttpUrl } from './csvImport';
+import { isScriptUrl } from './sheetsClient';
 
 // Full backup and restore (requirements spec 6.2). Handbook sections are left out: they can be re-synced.
 
@@ -7,6 +9,10 @@ export const BACKUP_SCHEMA_VERSION = 1;
 // Handbook sections and downloaded notes are left out: they can be fetched again.
 const TABLES = ['resources', 'expenses', 'exchanges', 'trips', 'paymentMethods', 'categories', 'handbookSources', 'settings', 'outbox'] as const;
 type TableName = (typeof TABLES)[number];
+
+// S-01: Google Sheets credentials are excluded from backups by default unless explicitly opted in.
+const SECRET_SETTING_KEYS = new Set(['gsUrl', 'gsSecret']);
+const SAFE_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 interface BackupImage { id: string; mime: string; width: number; height: number; createdAt: string; base64: string }
 export interface BackupFile {
@@ -42,7 +48,7 @@ export function backupFileName(d = new Date()) {
   return `CzechMate_備份_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
 }
 
-export async function createBackup(db: CzechMateDB): Promise<BackupFile> {
+export async function createBackup(db: CzechMateDB, opts: { includeSecrets?: boolean } = {}): Promise<BackupFile> {
   // Read everything in one transaction, then encode images outside it: awaiting non-database work
   // (Blob.arrayBuffer) inside a Dexie transaction makes it commit early and the backup fail.
   const { data, images } = await db.transaction('r', [...TABLES.map(t => db.table(t)), db.images], async () => {
@@ -50,6 +56,9 @@ export async function createBackup(db: CzechMateDB): Promise<BackupFile> {
     for (const t of TABLES) data[t] = await db.table(t).toArray();
     return { data, images: await db.images.toArray() };
   });
+  if (!opts.includeSecrets) {
+    data.settings = (data.settings ?? []).filter(r => !SECRET_SETTING_KEYS.has((r as { key?: string })?.key ?? ''));
+  }
   data.images = [];
   for (const im of images) {
     data.images.push({ id: im.id, mime: im.blob.type || 'image/jpeg', width: im.width, height: im.height, createdAt: im.createdAt, base64: await blobToBase64(im.blob) });
@@ -75,19 +84,46 @@ export function parseBackup(text: string): BackupFile {
   for (const t of [...TABLES, 'images'] as const) {
     if (b.data[t] !== undefined && !Array.isArray(b.data[t])) throw new RestoreError(`備份檔內容有誤（${t}）。`);
   }
+  for (const r of (b.data.resources ?? []) as { url?: unknown }[]) {
+    if (r?.url !== undefined && r.url !== '' && (typeof r.url !== 'string' || !isHttpUrl(r.url))) {
+      throw new RestoreError('備份檔內的資源網址需要以 http:// 或 https:// 開頭。');
+    }
+  }
+  for (const s of (b.data.handbookSources ?? []) as { url?: unknown }[]) {
+    if (s?.url !== undefined && s.url !== '' && (typeof s.url !== 'string' || !isHttpUrl(s.url))) {
+      throw new RestoreError('備份檔內的手冊網址需要以 http:// 或 https:// 開頭。');
+    }
+  }
+  for (const row of (b.data.settings ?? []) as { key?: unknown; value?: unknown }[]) {
+    if (row?.key === 'gsUrl' && row.value && (typeof row.value !== 'string' || !isScriptUrl(row.value))) {
+      throw new RestoreError('備份檔內的試算表腳本網址格式有誤。');
+    }
+    if (row?.key === 'gsSheetUrl' && row.value && (typeof row.value !== 'string' || !isHttpUrl(row.value))) {
+      throw new RestoreError('備份檔內的試算表網址格式有誤。');
+    }
+  }
   return b as BackupFile;
 }
 
 /** Replaces all data in one transaction; on failure nothing changes. */
 export async function restoreBackup(db: CzechMateDB, backup: BackupFile): Promise<void> {
-  const images = (backup.data.images ?? []).map(im => ({ id: im.id, width: im.width, height: im.height, createdAt: im.createdAt, blob: base64ToBlob(im.base64, im.mime) }));
+  const images = (backup.data.images ?? []).map(im => {
+    const mime = SAFE_IMAGE_MIMES.has(im.mime) ? im.mime : 'image/jpeg';
+    return { id: im.id, width: im.width, height: im.height, createdAt: im.createdAt, blob: base64ToBlob(im.base64, mime) };
+  });
   await db.transaction('rw', [...TABLES.map(t => db.table(t)), db.images, db.handbookSections], async () => {
+    const keptSecrets = (await db.settings.bulkGet([...SECRET_SETTING_KEYS])).filter((x): x is { key: string; value: unknown } => !!x);
     for (const t of TABLES) await db.table(t).clear();
     await db.images.clear();
     await db.handbookSections.clear();
     for (const t of TABLES) {
       const rows = backup.data[t] ?? [];
       if (rows.length) await db.table(t).bulkAdd(rows);
+    }
+    // Preserve local Google Sheets credentials when restoring a backup that excluded them (S-01).
+    const incomingKeys = new Set(((backup.data.settings ?? []) as { key?: string }[]).map(s => s.key));
+    for (const s of keptSecrets) {
+      if (!incomingKeys.has(s.key)) await db.settings.put(s);
     }
     if (images.length) await db.images.bulkAdd(images);
   });
