@@ -5,6 +5,8 @@ import { MODES, MODE_SHORT, type Currency, type Mode } from '../../domain/consta
 import { monthKey, monthLabel, monthRange, shortDate, slashDate, today } from '../../domain/dates';
 import { formatAmount, formatTwd, parseAmount } from '../../domain/format';
 import { summarize } from '../../domain/money';
+import { budgetStatus } from '../../domain/budget';
+import { BudgetBar } from '../../components/BudgetBar';
 import { byCategory, filterMonth, monthsWithData, paymentSummaries, tripSummaries, type CategorySlice } from '../../domain/stats';
 import { IconAlert, IconChart, IconShare } from '../../components/Icons';
 import { PageHeader } from '../../components/PageHeader';
@@ -146,6 +148,7 @@ function TripView() {
               </span>
             )}
             <MissingNote count={t.missingCount} missing={t.missing} />
+            {t.trip.budgetTwd ? <BudgetBar label="預算" status={budgetStatus(t.twd, t.trip.budgetTwd)} /> : null}
           </button>
           {open === t.trip.id && (
             <>

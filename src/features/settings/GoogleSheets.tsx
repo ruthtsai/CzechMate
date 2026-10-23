@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db, getSetting, setSetting } from '../../db';
-import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets } from '../../db/sheetsSync';
+import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets, type SyncLogEntry } from '../../db/sheetsSync';
 import { refreshNotes } from '../../db/handbook';
 import { buildAppsScript, DEFAULT_IMAGE_FOLDER, generateSecret, isScriptUrl, normalizeFolderPath, ping, SheetsError } from '../../io/sheetsClient';
 import { Field } from '../../components/form';
@@ -29,12 +29,12 @@ const stamp = (iso?: string) => {
 export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const toast = useToast();
   const s = useLiveQuery(async () => {
-    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder'] as const;
+    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog'] as const;
     const rows = await db.settings.bulkGet([...keys]);
     return Object.fromEntries(keys.map((k, i) => [k, rows[i]?.value])) as {
       gsUrl?: string; gsSecret?: string; gsSheetUrl?: string; gsSheetName?: string; gsAutoSync?: boolean; gsLastSyncAt?: string;
       gsImageFolder?: string; gsScriptImageFolder?: string;
-      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean;
+      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean; gsSyncLog?: SyncLogEntry[];
     };
   }, []);
   const appOnly = useLiveQuery(() => db.resources.filter(r => (r.source ?? 'app') === 'app').count(), [], 0);
@@ -178,6 +178,19 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
               <b>「資源」工作表有些列沒有讀進來：</b>
               {s.gsPullErrors.slice(0, 15).map(e => <div key={e.line}>第 {e.line} 列：{e.message}</div>)}
             </div>
+          )}
+          {!!s.gsSyncLog?.length && (
+            <details className="synclog">
+              <summary>同步紀錄（最近 {s.gsSyncLog.length} 次）</summary>
+              <ul>
+                {s.gsSyncLog.map((e, i) => (
+                  <li key={i} className={e.ok ? '' : 'bad'}>
+                    <span className="when">{stamp(e.at)}</span>
+                    <span>{e.ok ? '✓' : '✕'} {e.job}：{e.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
           {appOnly > 0 && (
             <div className="inset">

@@ -6,17 +6,20 @@ import { ExpenseForm } from './ExpenseForm';
 
 interface Editors {
   openExpense: (id?: string) => void;
+  /** A new expense prefilled from an earlier one (U-01). */
+  copyExpense: (fromId: string) => void;
   openExchange: (id?: string) => void;
 }
 
-const Ctx = createContext<Editors>({ openExpense: () => {}, openExchange: () => {} });
+const Ctx = createContext<Editors>({ openExpense: () => {}, copyExpense: () => {}, openExchange: () => {} });
 
 export function EditorsProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{ kind: 'expense' | 'exchange'; id?: string } | null>(null);
+  const [state, setState] = useState<{ kind: 'expense' | 'exchange'; id?: string; copyFrom?: string } | null>(null);
   const close = useCallback(() => setState(null), []);
   const value = useMemo<Editors>(
     () => ({
       openExpense: id => setState({ kind: 'expense', id }),
+      copyExpense: copyFrom => setState({ kind: 'expense', copyFrom }),
       openExchange: id => setState({ kind: 'exchange', id })
     }),
     []
@@ -24,7 +27,10 @@ export function EditorsProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <ExpenseForm open={state?.kind === 'expense'} editId={state?.kind === 'expense' ? state.id : undefined} onClose={close} />
+      <ExpenseForm
+        open={state?.kind === 'expense'} editId={state?.kind === 'expense' ? state.id : undefined} copyFromId={state?.copyFrom}
+        onCopy={id => setState({ kind: 'expense', copyFrom: id })} onClose={close}
+      />
       <ExchangeForm open={state?.kind === 'exchange'} editId={state?.kind === 'exchange' ? state.id : undefined} onClose={close} />
     </Ctx.Provider>
   );

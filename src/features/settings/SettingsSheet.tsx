@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { db, getSetting, setSetting } from '../../db';
 import { MODE_SHORT, MODES, type Theme } from '../../domain/constants';
+import { parseAmount } from '../../domain/format';
+import { getKeyDates } from '../../db/keyDates';
 import { backupFileName, createBackup, parseBackup, restoreBackup, RestoreError, type BackupFile } from '../../io/backup';
 import { fileSize, shareOrDownload } from '../../io/share';
 import { applyTheme } from '../../theme';
@@ -10,7 +12,7 @@ import { Seg, Sheet, useToast } from '../../components/ui';
 import type { SettingsScreen } from '../../components/PageHeader';
 import { useLedger } from '../ledger/LedgerData';
 import { ExportSheet } from '../data/ExportSheet';
-import { ManageCategories, ManagePayments, ManageTrips } from './Manage';
+import { ManageCategories, ManageKeyDates, ManagePayments, ManageTrips } from './Manage';
 import { ImportResources, ManagePins, ManageTags } from './ManageLibrary';
 import { GoogleSheetsSettings } from './GoogleSheets';
 import { syncHandbooks } from '../../db/handbook';
@@ -41,6 +43,18 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
   const [busy, setBusy] = useState(false);
   const [readyBackup, setReadyBackup] = useState<File | null>(null);
   const [includeSecrets, setIncludeSecrets] = useState(false);
+  const keyDateCount = useLiveQuery(async () => (await getKeyDates()).length, [], 0);
+  const monthlyBudget = useLiveQuery(() => getSetting<number>('budgetMonthly', 0), [], 0);
+  const [budgetInput, setBudgetInput] = useState('');
+  useEffect(() => setBudgetInput(monthlyBudget ? String(monthlyBudget) : ''), [monthlyBudget]);
+  async function saveBudget() {
+    const n = budgetInput.trim() ? parseAmount(budgetInput) : 0;
+    if (!(n >= 0)) {
+      setBudgetInput(monthlyBudget ? String(monthlyBudget) : '');
+      return toast('預算請輸入數字。', { ok: false });
+    }
+    if (Math.round(n) !== monthlyBudget) await setSetting('budgetMonthly', Math.round(n));
+  }
   const fileInput = useRef<HTMLInputElement>(null);
   const sheetName = useLiveQuery(() => getSetting<string>('gsSheetName', ''), [], '');
   const hasSheetsSecret = useLiveQuery(async () => !!(await getSetting<string>('gsUrl', '')), [], false);
@@ -150,6 +164,7 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
         {screen === 'payments' && <ManagePayments onBack={back} />}
         {screen === 'categories' && <ManageCategories onBack={back} />}
         {screen === 'trips' && <ManageTrips onBack={back} />}
+        {screen === 'dates' && <ManageKeyDates onBack={back} />}
         {screen === 'pins' && <ManagePins onBack={back} />}
         {screen === 'tags' && <ManageTags onBack={back} />}
         {screen === 'import' && <ImportResources onBack={back} />}
@@ -219,6 +234,23 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
               </span>
               <span className="end">›</span>
             </button>
+            <button type="button" className="row" onClick={() => setScreen('dates')}>
+              <span className="main">
+                <span className="t">重要日期</span>
+                <span className="m">{keyDateCount ? `${keyDateCount} 個日期，首頁倒數` : '簽證、押金、選課等截止日'}</span>
+              </span>
+              <span className="end">›</span>
+            </button>
+            <label className="row" htmlFor="set-budget">
+              <span className="main">
+                <span className="t">每月生活費預算</span>
+                <span className="m">只算「日常生活」模式，首頁顯示剩餘額度；留空表示不設</span>
+              </span>
+              <input
+                id="set-budget" className="end num" inputMode="numeric" placeholder="NT$" style={{ width: 96, textAlign: 'right' }}
+                value={budgetInput} onChange={e => setBudgetInput(e.target.value)} onBlur={saveBudget}
+              />
+            </label>
           </div>
         </div>
 

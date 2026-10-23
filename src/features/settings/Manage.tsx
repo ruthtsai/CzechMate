@@ -4,7 +4,11 @@ import {
 } from '../../db/ledger';
 import type { Category, PaymentMethod, Trip } from '../../db/schema';
 import { MODES, MODE_SHORT, PAYMENT_KIND_LABEL, type Mode } from '../../domain/constants';
-import { slashDate, today } from '../../domain/dates';
+import { daysBetween, slashDate, today } from '../../domain/dates';
+import { countdownLabel } from '../../domain/keyDates';
+import { deleteKeyDate, getKeyDates, saveKeyDate } from '../../db/keyDates';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { formatTwd, parseAmount } from '../../domain/format';
 import { Field, FieldError } from '../../components/form';
 import { Seg, useToast } from '../../components/ui';
 import { useLedger } from '../ledger/LedgerData';
@@ -137,14 +141,16 @@ export function ManageCategories({ onBack }: { onBack: () => void }) {
 export function ManageTrips({ onBack }: { onBack: () => void }) {
   const L = useLedger();
   const run = useRun();
-  const [edit, setEdit] = useState<{ id?: string; name: string; start: string; end: string; error?: string } | null>(null);
+  const [edit, setEdit] = useState<{ id?: string; name: string; start: string; end: string; budget: string; error?: string } | null>(null);
   const count = (t: Trip) => L.expenses.filter(e => e.tripId === t.id).length;
 
   async function submit() {
     if (!edit) return;
     if (!edit.start) return setEdit({ ...edit, error: '請選擇開始日期。' });
     try {
-      await saveTrip({ name: edit.name, startDate: edit.start, endDate: edit.end || undefined }, edit.id);
+      const budget = edit.budget.trim() ? parseAmount(edit.budget) : 0;
+      if (!(budget >= 0)) return setEdit({ ...edit, error: '預算請輸入數字。' });
+      await saveTrip({ name: edit.name, startDate: edit.start, endDate: edit.end || undefined, budgetTwd: budget }, edit.id);
       setEdit(null);
     } catch (e) {
       setEdit({ ...edit, error: (e as Error).message });
@@ -160,9 +166,9 @@ export function ManageTrips({ onBack }: { onBack: () => void }) {
             <div className="editrow" key={t.id}>
               <span className="name">
                 <span>{t.name}</span>
-                <small className="num">{slashDate(t.startDate)}{t.endDate ? ` – ${slashDate(t.endDate)}` : ''} · {count(t)} 筆</small>
+                <small className="num">{slashDate(t.startDate)}{t.endDate ? ` – ${slashDate(t.endDate)}` : ''} · {count(t)} 筆{t.budgetTwd ? ` · 預算 ${formatTwd(t.budgetTwd)}` : ''}</small>
               </span>
-              <button type="button" className="mini" onClick={() => setEdit({ id: t.id, name: t.name, start: t.startDate, end: t.endDate ?? '' })}>編輯</button>
+              <button type="button" className="mini" onClick={() => setEdit({ id: t.id, name: t.name, start: t.startDate, end: t.endDate ?? '', budget: t.budgetTwd ? String(t.budgetTwd) : '' })}>編輯</button>
               <button type="button" className="mini" aria-label={`刪除 ${t.name}`} onClick={() => run(() => deleteTrip(t.id), '已刪除。')}>✕</button>
             </div>
           ))}
@@ -179,6 +185,9 @@ export function ManageTrips({ onBack }: { onBack: () => void }) {
             <Field label="開始" htmlFor="trip-start"><input id="trip-start" type="date" value={edit.start} onChange={e => setEdit({ ...edit, start: e.target.value })} /></Field>
             <Field label="結束（選填）" htmlFor="trip-end"><input id="trip-end" type="date" value={edit.end} min={edit.start} onChange={e => setEdit({ ...edit, end: e.target.value })} /></Field>
           </div>
+          <Field label="預算（台幣，選填）" htmlFor="trip-budget">
+            <input id="trip-budget" inputMode="numeric" value={edit.budget} placeholder="例如：8000" onChange={e => setEdit({ ...edit, budget: e.target.value, error: undefined })} />
+          </Field>
           <FieldError text={edit.error} />
           <div className="actions">
             <button type="button" className="btn btn-secondary" onClick={() => setEdit(null)}>取消</button>
@@ -186,9 +195,69 @@ export function ManageTrips({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       ) : (
-        <button type="button" className="btn btn-secondary" onClick={() => setEdit({ name: '', start: today(), end: '' })}>＋ 新增旅程</button>
+        <button type="button" className="btn btn-secondary" onClick={() => setEdit({ name: '', start: today(), end: '', budget: '' })}>＋ 新增旅程</button>
       )}
       <p className="muted tiny" style={{ margin: 0 }}>已有支出的旅程不能刪除。</p>
+    </>
+  );
+}
+
+export function ManageKeyDates({ onBack }: { onBack: () => void }) {
+  const run = useRun();
+  const dates = useLiveQuery(getKeyDates, [], []);
+  const [edit, setEdit] = useState<{ id?: string; title: string; date: string; note: string; error?: string } | null>(null);
+  const sorted = [...dates].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  async function submit() {
+    if (!edit) return;
+    try {
+      await saveKeyDate({ title: edit.title, date: edit.date, note: edit.note }, edit.id);
+      setEdit(null);
+    } catch (e) {
+      setEdit({ ...edit, error: (e as Error).message });
+    }
+  }
+
+  return (
+    <>
+      <Header title="重要日期" onBack={onBack} />
+      {sorted.length > 0 ? (
+        <div className="list">
+          {sorted.map(d => (
+            <div className="editrow" key={d.id}>
+              <span className="name">
+                <span>{d.title}</span>
+                <small className="num">{slashDate(d.date)} · {countdownLabel(daysBetween(today(), d.date))}{d.note ? ` · ${d.note}` : ''}</small>
+              </span>
+              <button type="button" className="mini" onClick={() => setEdit({ id: d.id, title: d.title, date: d.date, note: d.note ?? '' })}>編輯</button>
+              <button type="button" className="mini" aria-label={`刪除 ${d.title}`} onClick={() => run(() => deleteKeyDate(d.id), '已刪除。')}>✕</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted small" style={{ margin: 0 }}>例如：簽證面試、宿舍押金截止、選課、出發日。首頁會倒數即將到來的日期。</p>
+      )}
+      {edit ? (
+        <div className="inset">
+          <Field label="名稱" htmlFor="kd-title">
+            <input id="kd-title" type="text" value={edit.title} autoFocus placeholder="例如：宿舍押金截止" onChange={e => setEdit({ ...edit, title: e.target.value, error: undefined })} />
+          </Field>
+          <Field label="日期" htmlFor="kd-date">
+            <input id="kd-date" type="date" value={edit.date} onChange={e => setEdit({ ...edit, date: e.target.value, error: undefined })} />
+          </Field>
+          <Field label="備註（選填）" htmlFor="kd-note">
+            <input id="kd-note" type="text" value={edit.note} placeholder="例如：要帶護照影本" onChange={e => setEdit({ ...edit, note: e.target.value })} />
+          </Field>
+          <FieldError text={edit.error} />
+          <div className="actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setEdit(null)}>取消</button>
+            <button type="button" className="btn btn-primary" onClick={submit}>{edit.id ? '儲存' : '新增'}</button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="btn btn-secondary" onClick={() => setEdit({ title: '', date: today(), note: '' })}>＋ 新增日期</button>
+      )}
+      <p className="muted tiny" style={{ margin: 0 }}>過期的日期隔天會從首頁消失，這裡仍會保留。</p>
     </>
   );
 }

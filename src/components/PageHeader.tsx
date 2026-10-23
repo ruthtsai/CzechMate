@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import { IconGear } from './Icons';
 import { TopBar } from './ui';
 
-export type SettingsScreen = 'main' | 'payments' | 'categories' | 'trips' | 'pins' | 'tags' | 'import' | 'restore' | 'sheets';
+export type SettingsScreen = 'main' | 'payments' | 'categories' | 'trips' | 'pins' | 'tags' | 'import' | 'restore' | 'sheets' | 'dates';
 
 /** Opens the settings sheet, optionally on a sub-screen. */
 export const SettingsCtx = createContext<(screen?: SettingsScreen) => void>(() => {});

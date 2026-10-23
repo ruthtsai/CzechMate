@@ -7,6 +7,8 @@ import { defaultFilters, filterExpenses, rememberFilters, takeReveal, takeStartF
 import { Field, Options } from '../../components/form';
 import { IconAlert, IconExchange, IconPlus, IconWallet } from '../../components/Icons';
 import { PageHeader } from '../../components/PageHeader';
+import { SearchBox } from '../../components/SearchBox';
+import type { Expense } from '../../db/schema';
 import { EmptyState, Seg, Sheet, useToast } from '../../components/ui';
 import { useEditors } from './Editors';
 import { useLedger } from './LedgerData';
@@ -39,14 +41,15 @@ export function LedgerPage() {
     return { pending, noRate };
   }, [L.money]);
 
-  const list = useMemo(() => filterExpenses(f, L.expenses, L.money.expenses, L.category), [L, f]);
+  const searchText = (e: Expense) => `${L.payment(e.paymentId)?.name ?? ''} ${e.tripId ? L.trips.find(t => t.id === e.tripId)?.name ?? '' : ''}`;
+  const list = useMemo(() => filterExpenses(f, L.expenses, L.money.expenses, L.category, undefined, searchText), [L, f]);
 
   // A just-saved expense must be visible: if the current filters hide it, go back to the usual view.
   useEffect(() => {
     const check = () => {
       const target = takeReveal(id => L.expenses.some(e => e.id === id));
       if (!target) return;
-      const visible = f.seg === 'expenses' && filterExpenses(f, L.expenses, L.money.expenses, L.category).some(e => e.id === target.id);
+      const visible = f.seg === 'expenses' && filterExpenses(f, L.expenses, L.money.expenses, L.category, undefined, searchText).some(e => e.id === target.id);
       if (visible) return;
       const thisMonth = target.date.slice(0, 7) === today().slice(0, 7);
       set({ ...defaultFilters(), period: thisMonth ? 'month' : 'all' });
@@ -89,6 +92,8 @@ export function LedgerPage() {
           </button>
         ) : (
           <>
+            <SearchBox value={f.q} onSearch={q => set({ q })} placeholder="搜尋品項、地點、備註或金額" label="搜尋支出" />
+            {f.q.trim() && <p className="muted small" style={{ margin: '-8px 0 0' }}>搜尋全部期間，共 {list.length} 筆</p>}
             <div className="scroller" role="group" aria-label="期間">
               {PERIODS.map(([k, n]) => (
                 <button key={k} type="button" className="fchip" aria-pressed={f.period === k && !(f.mode === 'travel' && f.tripId !== 'all')} onClick={() => set({ period: k, tripId: 'all' })}>{n}</button>

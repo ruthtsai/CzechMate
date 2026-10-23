@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { db } from '../../db';
 import { RESOURCE_TYPES, RESOURCE_TYPE_LABEL, STAGES, STAGE_LABEL, type ResourceType, type Stage } from '../../domain/constants';
 import { searchResources, searchSections, snippet, tagCounts, toTerms } from '../../domain/search';
@@ -8,7 +8,8 @@ import { slashDate } from '../../domain/dates';
 import { canonicalNoteUrl, isHackmdNote } from '../../io/hackmd';
 import { syncHandbooks } from '../../db/handbook';
 import { getSetting } from '../../db';
-import { IconBook, IconCheck, IconPlus, IconSearch } from '../../components/Icons';
+import { IconBook, IconCheck, IconPlus } from '../../components/Icons';
+import { SearchBox } from '../../components/SearchBox';
 import { PageHeader } from '../../components/PageHeader';
 import { EmptyState, useToast } from '../../components/ui';
 import { Highlighted, ResourceCard } from './parts';
@@ -28,19 +29,7 @@ export function LibraryPage() {
   const syncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [f, setF] = useState<LibFilters>(remembered);
-  const [input, setInput] = useState(f.q);
-  const composing = useRef(false);
   const set = (patch: Partial<LibFilters>) => setF(prev => (remembered = { ...prev, ...patch }));
-
-  // Search 150 ms after typing stops; never while an IME is composing (requirements spec 6.5).
-  // The check happens when the timer fires, because with 注音 the final text arrives before
-  // compositionend, so the input value does not change again when composing ends.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (!composing.current) set({ q: input });
-    }, 150);
-    return () => clearTimeout(t);
-  }, [input]);
 
   const tags = useMemo(() => tagCounts(resources ?? []), [resources]);
   const terms = toTerms(f.q);
@@ -67,26 +56,13 @@ export function LibraryPage() {
   }
 
   const filtering = f.q.trim() || f.stage !== 'all' || f.type !== 'all' || f.tag;
-  const clearAll = () => { setInput(''); set({ q: '', stage: 'all', type: 'all', tag: null }); };
+  const clearAll = () => set({ q: '', stage: 'all', type: 'all', tag: null });
 
   return (
     <>
       <PageHeader title="資源庫" />
       <main className="page">
-        <div className="search">
-          <IconSearch />
-          <input
-            type="search" placeholder="搜尋標題、內容、標籤或網址" aria-label="搜尋資源" value={input} enterKeyHint="search"
-            onChange={e => setInput(e.target.value)}
-            onCompositionStart={() => { composing.current = true; }}
-            onCompositionEnd={e => {
-              composing.current = false;
-              setInput(e.currentTarget.value);
-              set({ q: e.currentTarget.value }); // search right away; the value may not have changed
-            }}
-          />
-          {input && <button type="button" className="clear" aria-label="清除搜尋" onClick={() => { setInput(''); set({ q: '' }); }}>✕</button>}
-        </div>
+        <SearchBox value={f.q} onSearch={q => set({ q })} placeholder="搜尋標題、內容、標籤或網址" label="搜尋資源" />
 
         <div className="scroller" role="group" aria-label="階段篩選">
           <button type="button" className="fchip" aria-pressed={f.stage === 'all'} onClick={() => set({ stage: 'all' })}>全部階段</button>

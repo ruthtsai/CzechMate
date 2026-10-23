@@ -19,6 +19,20 @@ export async function getSheetsConfig(): Promise<SheetsConfig | null> {
 
 const message = (e: unknown) => (e instanceof SheetsError || e instanceof Error ? e.message : '同步失敗。');
 
+/* ---------- sync log (R-03) ---------- */
+
+export type SyncJob = '記帳' | '資源' | '上傳';
+export interface SyncLogEntry { at: string; job: SyncJob; ok: boolean; message: string }
+export const SYNC_LOG_MAX = 20;
+
+/** Newest first, capped at SYNC_LOG_MAX. */
+export const withLogEntry = (log: SyncLogEntry[], entry: SyncLogEntry) => [entry, ...log].slice(0, SYNC_LOG_MAX);
+
+export async function logSync(job: SyncJob, ok: boolean, msg: string) {
+  const log = await getSetting<SyncLogEntry[]>('gsSyncLog', []);
+  await setSetting('gsSyncLog', withLogEntry(Array.isArray(log) ? log : [], { at: new Date().toISOString(), job, ok, message: msg }));
+}
+
 /* ---------- ledger push ---------- */
 
 export async function syncLedgerNow(cfg: SheetsConfig): Promise<void> {
@@ -30,8 +44,10 @@ export async function syncLedgerNow(cfg: SheetsConfig): Promise<void> {
   try {
     const r = await pushLedger(cfg, buildSheets({ expenses, exchanges, payments, categories, trips, money }));
     await Promise.all([setSetting('gsDirty', false), setSetting('gsLastSyncAt', r.syncedAt), setSetting('gsLastError', '')]);
+    await logSync('記帳', true, `${expenses.length} 筆支出、${exchanges.length} 筆換匯`);
   } catch (e) {
     await setSetting('gsLastError', `記帳同步失敗：${message(e)}`);
+    await logSync('記帳', false, message(e));
     throw e;
   }
 }
@@ -56,15 +72,21 @@ export async function pullResources(cfg: SheetsConfig, opts: { checkAllImages?: 
     });
     const images = await syncImages(cfg, !!opts.checkAllImages);
     await Promise.all([setSetting('gsLastPullAt', new Date().toISOString()), setSetting('gsPullErrors', plan.errors), setSetting('gsLastError', '')]);
-    return {
+    const summary = {
       added: plan.put.filter(r => !before.has(r.id)).length,
       updated: plan.put.filter(r => before.has(r.id)).length,
       removed: plan.remove.length,
       errors: plan.errors,
       images
     };
+    // Unchanged pulls happen every few minutes; only log ones that did something.
+    if (plan.put.length || plan.remove.length || images || plan.errors.length) {
+      await logSync('資源', !plan.errors.length, `新增 ${summary.added}、更新 ${summary.updated}、移除 ${summary.removed}${images ? `、圖片 ${images}` : ''}${plan.errors.length ? `，${plan.errors.length} 列有誤` : ''}`);
+    }
+    return summary;
   } catch (e) {
     await setSetting('gsLastError', `資源更新失敗：${message(e)}`);
+    await logSync('資源', false, message(e));
     throw e;
   }
 }
@@ -147,9 +169,11 @@ export async function processOutbox(cfg: SheetsConfig): Promise<number> {
       sent++;
     } catch (e) {
       await db.outbox.update(item.id, { attempts: item.attempts + 1, lastError: message(e) });
+      await logSync('上傳', false, `「${r.title}」：${message(e)}`);
       if (e instanceof SheetsError && (e.code === 'network' || e.code === 'config' || e.code === 'secret')) break;
     }
   }
+  if (sent) await logSync('上傳', true, `${sent} 筆資源送到試算表`);
   return sent;
 }
 
@@ -183,5 +207,5 @@ export async function unlinkSheets() {
     await db.resources.filter(r => r.source === 'sheet' || r.source === 'pending').modify({ source: 'app' });
     await db.outbox.clear();
   });
-  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty'].map(k => db.settings.delete(k)));
+  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsSyncLog'].map(k => db.settings.delete(k)));
 }

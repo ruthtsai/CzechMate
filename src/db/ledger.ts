@@ -49,17 +49,18 @@ export const deleteExchange = (id: string) => db.exchanges.delete(id);
 
 /* ---------- trips ---------- */
 
-export async function saveTrip(input: { name: string; startDate: string; endDate?: string }, id?: string): Promise<string> {
+export async function saveTrip(input: { name: string; startDate: string; endDate?: string; budgetTwd?: number }, id?: string): Promise<string> {
   const name = input.name.trim();
   if (!name) throw new Error('請輸入旅程名稱。');
   const clash = await db.trips.filter(t => t.name === name && t.id !== id).count();
   if (clash) throw new Error('已經有同名的旅程。');
   const endDate = input.endDate && input.endDate >= input.startDate ? input.endDate : undefined;
+  const budgetTwd = input.budgetTwd && input.budgetTwd > 0 ? Math.round(input.budgetTwd) : undefined;
   if (id) {
-    await db.trips.update(id, { name, startDate: input.startDate, endDate });
+    await db.trips.update(id, { name, startDate: input.startDate, endDate, budgetTwd });
     return id;
   }
-  const trip: Trip = { id: uid(), name, startDate: input.startDate, endDate, createdAt: now() };
+  const trip: Trip = { id: uid(), name, startDate: input.startDate, endDate, budgetTwd, createdAt: now() };
   await db.trips.add(trip);
   return trip.id;
 }

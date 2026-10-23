@@ -10,6 +10,7 @@ import { DeleteButton, Field, FieldError, Options } from '../../components/form'
 import { Seg, Sheet, useToast } from '../../components/ui';
 import { useLedger } from './LedgerData';
 import { revealExpense } from './ledgerFilters';
+import { copyFields, recentTemplates } from './templates';
 
 interface Draft {
   mode: Mode;
@@ -27,7 +28,9 @@ interface Draft {
 
 const MODE_OPTIONS = MODES.map(m => [m, MODE_SHORT[m]] as const);
 
-export function ExpenseForm({ open, editId, onClose }: { open: boolean; editId?: string; onClose: () => void }) {
+export function ExpenseForm({ open, editId, copyFromId, onCopy, onClose }: {
+  open: boolean; editId?: string; copyFromId?: string; onCopy: (id: string) => void; onClose: () => void;
+}) {
   const L = useLedger();
   const toast = useToast();
   const [d, setD] = useState<Draft | null>(null);
@@ -48,6 +51,11 @@ export function ExpenseForm({ open, editId, onClose }: { open: boolean; editId?:
       setD({ ...e, amount: String(e.amount), billTwd: e.billTwd ? String(e.billTwd) : '' });
       return;
     }
+    const from = copyFromId ? L.expenses.find(x => x.id === copyFromId) : undefined;
+    if (from) {
+      setD({ ...copyFields(from), date: today(), note: '', billTwd: '' });
+      return;
+    }
     let cancelled = false;
     Promise.all([
       getSetting<Mode>('lastMode', 'daily'),
@@ -62,7 +70,9 @@ export function ExpenseForm({ open, editId, onClose }: { open: boolean; editId?:
     });
     return () => { cancelled = true; };
     // Only re-run when the sheet opens or the record changes, not on every ledger update.
-  }, [open, editId, L.ready]);
+  }, [open, editId, copyFromId, L.ready]);
+
+  const templates = useMemo(() => (open && !editId && !copyFromId ? recentTemplates(L.expenses) : []), [open, editId, copyFromId, L.ready]);
 
   const kind = d ? L.payment(d.paymentId)?.kind : undefined;
 
@@ -145,11 +155,22 @@ export function ExpenseForm({ open, editId, onClose }: { open: boolean; editId?:
     <Sheet open={open} onClose={onClose} labelledBy="exp-title" className={travel ? 'form-travel' : undefined}>
       <div className="sheet-h">
         <button type="button" onClick={onClose}>取消</button>
-        <h2 id="exp-title" style={{ textAlign: 'center' }}>{editId ? '編輯支出' : '新增支出'}</h2>
+        <h2 id="exp-title" style={{ textAlign: 'center' }}>{editId ? '編輯支出' : copyFromId ? '複製支出' : '新增支出'}</h2>
         <button type="button" className="save" onClick={save} disabled={saving}>儲存</button>
       </div>
 
       <Seg label="記帳模式" value={d.mode} options={MODE_OPTIONS} onChange={changeMode} />
+
+      {templates.length > 0 && !d.amount && !d.itemName && (
+        <div className="scroller" role="group" aria-label="最近記過">
+          <span className="muted small" style={{ flexShrink: 0, alignSelf: 'center' }}>最近記過</span>
+          {templates.map(t => (
+            <button key={t.id} type="button" className="fchip" onClick={() => set({ ...copyFields(t), tripId: t.tripId ?? d.tripId })}>
+              {t.itemName} · {formatAmount(t.amount, t.currency)} {t.currency}
+            </button>
+          ))}
+        </div>
+      )}
 
       {travel && (
         <Field label="哪一趟旅程" error={errors.tripId}>
@@ -228,6 +249,7 @@ export function ExpenseForm({ open, editId, onClose }: { open: boolean; editId?:
       )}
 
       <button type="button" className="btn btn-primary btn-block" onClick={save} disabled={saving}>儲存</button>
+      {editId && <button type="button" className="btn btn-secondary btn-block" onClick={() => onCopy(editId)}>複製成新的一筆</button>}
       {editId && <DeleteButton label="刪除這筆支出" onDelete={remove} />}
     </Sheet>
   );

@@ -3,9 +3,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db, getSetting, setSetting } from '../../db';
 import { ExportSheet } from '../data/ExportSheet';
-import { monthKey, monthLabel, today } from '../../domain/dates';
+import { monthKey, monthLabel, slashDate, today, weekday } from '../../domain/dates';
+import { countdownLabel, upcomingKeyDates } from '../../domain/keyDates';
+import { getKeyDates } from '../../db/keyDates';
 import { formatAmount } from '../../domain/format';
 import { summarize } from '../../domain/money';
+import { activeTrips, budgetStatus } from '../../domain/budget';
+import { BudgetBar } from '../../components/BudgetBar';
 import type { Currency } from '../../domain/constants';
 import { IconAlert, IconPin, IconPlus } from '../../components/Icons';
 import { EmptyState } from '../../components/ui';
@@ -54,6 +58,12 @@ export function HomePage() {
   const month = monthKey(today());
   const thisMonth = L.expenses.filter(e => monthKey(e.date) === month);
   const sum = summarize(thisMonth, L.money.expenses);
+  const keyDates = useLiveQuery(async () => upcomingKeyDates(await getKeyDates(), today()).slice(0, 4), [], []);
+  const monthlyBudget = useLiveQuery(() => getSetting<number>('budgetMonthly', 0), [], 0);
+  const living = monthlyBudget > 0 ? budgetStatus(summarize(thisMonth.filter(e => e.mode === 'daily'), L.money.expenses).twd, monthlyBudget) : null;
+  const tripBudgets = activeTrips(L.trips, today())
+    .filter(t => t.budgetTwd)
+    .map(t => ({ trip: t, status: budgetStatus(summarize(L.expenses.filter(e => e.tripId === t.id), L.money.expenses).twd, t.budgetTwd!) }));
   let pending = 0;
   for (const c of L.money.expenses.values()) if (c.source === 'pending') pending++;
   const negative = Object.entries(L.money.cash).filter(([, s]) => s && s.stock < -0.004).map(([c]) => c);
@@ -129,6 +139,26 @@ export function HomePage() {
           )}
         </section>
 
+        {keyDates.length > 0 && (
+          <section className="section">
+            <div className="sec-h">
+              <h2>重要日期</h2>
+              <button type="button" className="linkbtn" onClick={() => openSettings('dates')}>管理 ›</button>
+            </div>
+            <div className="list keydates">
+              {keyDates.map(d => (
+                <div key={d.id} className={`keydate${d.daysLeft <= 7 ? ' soon' : ''}`}>
+                  <span className="main">
+                    <span className="t">{d.title}</span>
+                    <span className="m num">{slashDate(d.date)} {weekday(d.date)}{d.note ? ` · ${d.note}` : ''}</span>
+                  </span>
+                  <span className="left num">{countdownLabel(d.daysLeft)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="section">
           <div className="sec-h"><h2>{monthLabel(month)}花費</h2></div>
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -145,6 +175,8 @@ export function HomePage() {
                   `，另有 ${sum.missingCount} 筆未換算（${Object.entries(sum.missing).map(([c, a]) => `${formatAmount(a!, c as Currency)} ${c}`).join('、')}）`}
               </span>
             )}
+            {living && <BudgetBar label="本月生活費預算" status={living} />}
+            {tripBudgets.map(b => <BudgetBar key={b.trip.id} label={`${b.trip.name}預算`} status={b.status} />)}
           </div>
           <button type="button" className="btn btn-primary btn-block" onClick={() => openExpense()}>
             <IconPlus />快速記一筆

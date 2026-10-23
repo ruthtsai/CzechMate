@@ -101,6 +101,8 @@ export interface Trip {
   name: string;
   startDate: string;
   endDate?: string;
+  /** Optional budget in TWD (U-03). */
+  budgetTwd?: number;
   createdAt: string;
 }
 
