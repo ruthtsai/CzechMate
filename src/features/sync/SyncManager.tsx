@@ -31,7 +31,11 @@ export function SyncManager() {
     try {
       if (await db.outbox.count()) await processOutbox(cfg);
       const auto = await getSetting<boolean>('gsAutoSync', true);
-      if (auto && (await getSetting<boolean>('gsDirty', false))) await syncLedgerNow(cfg);
+      // While the sheet holds a ledger this phone has not seen, wait for the user to restore or overwrite it.
+      const waiting = await getSetting<unknown>('gsRestoreOffer', null);
+      // A phone that has never saved its full ledger to the sheet does so once, as the first backup.
+      const firstBackup = !(await getSetting<boolean>('gsLedgerOwner', false));
+      if (auto && !waiting && (firstBackup || (await getSetting<boolean>('gsDirty', false)))) await syncLedgerNow(cfg);
       if (job === 'all' && (force || Date.now() - lastPull.current > PULL_EVERY)) {
         await pullResources(cfg);
         lastPull.current = Date.now();

@@ -2,7 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db, getSetting, setSetting } from '../../db';
 import { ShortcutGuide } from './ShortcutGuide';
-import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets, type SyncLogEntry } from '../../db/sheetsSync';
+import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets, type RestoreOffer, type SyncLogEntry } from '../../db/sheetsSync';
+import { LedgerRestore } from './LedgerRestore';
 import { refreshNotes } from '../../db/handbook';
 import { buildAppsScript, DEFAULT_IMAGE_FOLDER, generateSecret, isScriptUrl, normalizeFolderPath, ping, SheetsError } from '../../io/sheetsClient';
 import { Field } from '../../components/form';
@@ -30,12 +31,12 @@ const stamp = (iso?: string) => {
 export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const toast = useToast();
   const s = useLiveQuery(async () => {
-    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog', 'gsScriptFeatures'] as const;
+    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog', 'gsScriptFeatures', 'gsRestoreOffer'] as const;
     const rows = await db.settings.bulkGet([...keys]);
     return Object.fromEntries(keys.map((k, i) => [k, rows[i]?.value])) as {
       gsUrl?: string; gsSecret?: string; gsSheetUrl?: string; gsSheetName?: string; gsAutoSync?: boolean; gsLastSyncAt?: string;
       gsImageFolder?: string; gsScriptImageFolder?: string;
-      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean; gsSyncLog?: SyncLogEntry[]; gsScriptFeatures?: string[];
+      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean; gsSyncLog?: SyncLogEntry[]; gsScriptFeatures?: string[]; gsRestoreOffer?: RestoreOffer;
     };
   }, []);
   const appOnly = useLiveQuery(() => db.resources.filter(r => (r.source ?? 'app') === 'app').count(), [], 0);
@@ -117,7 +118,11 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
       toast(`已連線到「${r.name}」。`);
       setBusy('第一次同步中…');
       const cfg = { url: u, secret };
-      await syncLedgerNow(cfg);
+      // A new or wiped phone must not overwrite a ledger already in the sheet; the restore section takes over.
+      await syncLedgerNow(cfg).catch(e => {
+        if (!(e instanceof SheetsError && e.code === 'wouldErase')) throw e;
+        toast('試算表裡已有記帳資料，請在下方「記帳備份與還原」選擇要還原或覆蓋。', { ok: false });
+      });
       await pullResources(cfg);
     } catch (e) {
       toast(e instanceof SheetsError ? e.message : '連線失敗。', { ok: false });
@@ -247,6 +252,8 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
           網址與金鑰只存在這支手機，不會上傳到其他地方；備份檔預設不包含它們。試算表會多出「資源」與五個記帳工作表；你自己的其他工作表不會被動到。
         </p>
       </div>
+
+      {linked && <LedgerRestore offer={s.gsRestoreOffer} supported={!!s.gsScriptFeatures?.includes('ledgerRestore')} lastSyncAt={s.gsLastSyncAt} />}
 
       {linked && <ShortcutGuide url={s.gsUrl!} secret={s.gsSecret ?? ''} supported={!!s.gsScriptFeatures?.includes('quickAddType')} />}
 

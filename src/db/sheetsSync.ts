@@ -6,8 +6,9 @@ import { base64ToBlob, blobToBase64 } from '../io/backup';
 import { buildSheets } from '../io/exportRows';
 import { compressImage } from '../io/images';
 import {
-  appendResource, getImages, getResources, pushLedger, SheetsError, uploadImage, type SheetsConfig
+  appendResource, getImages, getLedger, getResources, pushLedger, SheetsError, uploadImage, type RawCounts, type SheetsConfig
 } from '../io/sheetsClient';
+import { LEDGER_SETTING_KEYS, validateLedgerTables, type LedgerTables } from '../domain/ledgerRestore';
 
 // Google Sheets sync jobs (requirements spec 6.6, 6.7). Each job reads its own data from the database,
 // so it can run from a timer or an event without the UI.
@@ -35,21 +36,99 @@ export async function logSync(job: SyncJob, ok: boolean, msg: string) {
 
 /* ---------- ledger push ---------- */
 
-export async function syncLedgerNow(cfg: SheetsConfig): Promise<void> {
-  const [expenses, exchanges, payments, categories, trips] = await Promise.all([
-    db.expenses.toArray(), db.exchanges.toArray(), db.paymentMethods.orderBy('order').toArray(), db.categories.orderBy('order').toArray(), db.trips.toArray()
+/**
+ * What the sheet holds when this phone has not synced its ledger there yet but the sheet already has one
+ * (a new phone, or one whose data was wiped). Ledger pushes wait until the user restores or overwrites.
+ */
+export interface RestoreOffer { counts: RawCounts; syncedAt: string }
+
+/** True once this phone has saved its ledger to the sheet or restored from it; its pushes are trusted. */
+const isLedgerOwner = () => getSetting<boolean>('gsLedgerOwner', false);
+
+async function rawLedger(): Promise<LedgerTables> {
+  const [expenses, exchanges, trips, paymentMethods, categories, settings] = await Promise.all([
+    db.expenses.toArray(), db.exchanges.toArray(), db.trips.toArray(), db.paymentMethods.toArray(), db.categories.toArray(),
+    db.settings.bulkGet([...LEDGER_SETTING_KEYS])
   ]);
+  return { expenses, exchanges, trips, paymentMethods, categories, settings: settings.filter((x): x is { key: string; value: unknown } => !!x) };
+}
+
+/** The sheet's saved ledger summary, or null when the script is too old to keep one. */
+async function remoteLedger(cfg: SheetsConfig) {
+  try {
+    return await getLedger(cfg);
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'protocol') return null;
+    throw e;
+  }
+}
+
+export async function syncLedgerNow(cfg: SheetsConfig): Promise<void> {
+  const raw = await rawLedger();
+  const { expenses, exchanges, trips } = raw;
+  const payments = [...raw.paymentMethods].sort((a, b) => a.order - b.order);
+  const categories = [...raw.categories].sort((a, b) => a.order - b.order);
   const kind = new Map(payments.map(p => [p.id, p.kind]));
   const money = computeMoney(expenses, exchanges, id => kind.get(id));
   try {
-    const r = await pushLedger(cfg, buildSheets({ expenses, exchanges, payments, categories, trips, money }));
-    await Promise.all([setSetting('gsDirty', false), setSetting('gsLastSyncAt', r.syncedAt), setSetting('gsLastError', '')]);
+    const owner = await isLedgerOwner();
+    if (!owner) {
+      // Never overwrite a ledger in the sheet that this phone has not seen: offer to restore it instead.
+      const remote = await remoteLedger(cfg);
+      // Records the phone already has (e.g. the same phone linked again) are safe to write over.
+      const localIds = new Set([...expenses, ...exchanges].map(x => x.id));
+      const unseen = remote?.tables
+        ? [...(remote.tables.expenses as { id?: string }[]), ...(remote.tables.exchanges as { id?: string }[])].some(x => !localIds.has(String(x?.id)))
+        : false;
+      if (remote && unseen) {
+        await setSetting('gsRestoreOffer', { counts: remote.counts, syncedAt: remote.syncedAt } satisfies RestoreOffer);
+        throw new SheetsError('wouldErase', `試算表裡已有 ${remote.counts.expenses} 筆支出、${remote.counts.exchanges} 筆換匯，請先選擇要還原，或用這支手機的資料覆蓋。`);
+      }
+    }
+    const r = await pushLedger(cfg, buildSheets({ expenses, exchanges, payments, categories, trips, money }), raw, owner);
+    const done = [setSetting('gsDirty', false), setSetting('gsLastSyncAt', r.syncedAt), setSetting('gsLastError', '')];
+    if (r.rawSaved) done.push(setSetting('gsLedgerOwner', true), db.settings.delete('gsRestoreOffer'));
+    await Promise.all(done);
     await logSync('記帳', true, `${expenses.length} 筆支出、${exchanges.length} 筆換匯`);
   } catch (e) {
     await setSetting('gsLastError', `記帳同步失敗：${message(e)}`);
     await logSync('記帳', false, message(e));
     throw e;
   }
+}
+
+/** Looks at what the sheet holds, for the confirmation before restoring. */
+export async function previewRestore(cfg: SheetsConfig): Promise<RestoreOffer> {
+  const remote = await getLedger(cfg);
+  return { counts: remote.counts, syncedAt: remote.syncedAt };
+}
+
+/** Replaces the phone's ledger (and budget and key dates) with the copy saved in the sheet. */
+export async function restoreLedgerFromSheet(cfg: SheetsConfig): Promise<RawCounts> {
+  const remote = await getLedger(cfg);
+  const checked = validateLedgerTables(remote.tables);
+  if (!checked.ok) throw new Error(checked.error);
+  const t = checked.tables;
+  await db.transaction('rw', [db.expenses, db.exchanges, db.trips, db.paymentMethods, db.categories, db.settings], async () => {
+    await Promise.all([db.expenses.clear(), db.exchanges.clear(), db.trips.clear(), db.paymentMethods.clear(), db.categories.clear()]);
+    await db.paymentMethods.bulkAdd(t.paymentMethods);
+    await db.categories.bulkAdd(t.categories);
+    await db.trips.bulkAdd(t.trips);
+    await db.expenses.bulkAdd(t.expenses);
+    await db.exchanges.bulkAdd(t.exchanges);
+    await db.settings.bulkDelete([...LEDGER_SETTING_KEYS]);
+    await db.settings.bulkPut(t.settings);
+    await db.settings.bulkPut([{ key: 'gsLedgerOwner', value: true }, { key: 'gsDirty', value: false }]);
+    await db.settings.delete('gsRestoreOffer');
+  });
+  await logSync('記帳', true, `從試算表還原 ${t.expenses.length} 筆支出、${t.exchanges.length} 筆換匯`);
+  return remote.counts;
+}
+
+/** The user chose to keep this phone's ledger: it replaces the copy in the sheet. */
+export async function overwriteSheetLedger(cfg: SheetsConfig): Promise<void> {
+  await Promise.all([setSetting('gsLedgerOwner', true), setSetting('gsDirty', true), db.settings.delete('gsRestoreOffer')]);
+  await syncLedgerNow(cfg);
 }
 
 /* ---------- resources pull ---------- */
@@ -207,5 +286,5 @@ export async function unlinkSheets() {
     await db.resources.filter(r => r.source === 'sheet' || r.source === 'pending').modify({ source: 'app' });
     await db.outbox.clear();
   });
-  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsSyncLog', 'gsScriptFeatures'].map(k => db.settings.delete(k)));
+  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsSyncLog', 'gsScriptFeatures', 'gsLedgerOwner', 'gsRestoreOffer'].map(k => db.settings.delete(k)));
 }

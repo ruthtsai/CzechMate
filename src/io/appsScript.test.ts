@@ -36,7 +36,9 @@ class FakeSheet {
   getLastColumn() { return Math.max(0, ...this.cells.map(r => r.length)); }
   getFilter() { return this.filter ? { remove: () => (this.filter = false) } : null; }
   clear() { this.cells = []; this.formats = []; }
+  hidden = false;
   setFrozenRows(n: number) { this.frozen = n; }
+  hideSheet() { this.hidden = true; }
   insertColumnBefore() { this.cells.forEach(r => r.unshift('')); }
   appendRow(row: unknown[]) { this.cells.push([...row]); }
 }
@@ -333,6 +335,51 @@ describe('quickAdd from the iOS share sheet', () => {
   });
 
   it('tells the app the script supports quickAdd', () => {
-    expect(makeEnv('s').post({ action: 'ping' }).features).toEqual(['quickAdd', 'quickAddType']);
+    expect(makeEnv('s').post({ action: 'ping' }).features).toEqual(['quickAdd', 'quickAddType', 'ledgerRestore']);
+  });
+});
+
+describe('ledger backup in the sheet', () => {
+  const raw = (expenses: number, exchanges = 0) => ({
+    expenses: Array.from({ length: expenses }, (_, i) => ({ id: `e${i}`, amount: 100 + i, itemName: i === 0 ? '=SUM(1)' : '午餐' })),
+    exchanges: Array.from({ length: exchanges }, (_, i) => ({ id: `x${i}` })),
+    trips: [{ id: 't1', name: '維也納' }],
+    paymentMethods: [{ id: 'pay-cash' }],
+    categories: [{ id: 'c1' }],
+    settings: [{ key: 'budgetMonthly', value: 15000 }]
+  });
+
+  it('saves every record to a hidden sheet and returns it as written', () => {
+    const env = makeEnv('s');
+    const r = env.post({ action: 'sync', sheets: [], raw: raw(2, 1) });
+    expect(r).toMatchObject({ ok: true, rawSaved: true });
+    expect(env.sheet('_記帳原始資料').hidden).toBe(true);
+    const back = env.post({ action: 'getLedger' });
+    expect(back.counts).toEqual({ expenses: 2, exchanges: 1, trips: 1, paymentMethods: 1, categories: 1, settings: 1 });
+    expect(back.tables.expenses[0]).toEqual({ id: 'e0', amount: 100, itemName: '=SUM(1)' });
+    expect(back.syncedAt).toBe(r.syncedAt);
+  });
+
+  it('answers with no tables before anything was saved', () => {
+    expect(makeEnv('s').post({ action: 'getLedger' })).toMatchObject({ ok: true, tables: null, counts: { expenses: 0, exchanges: 0 } });
+  });
+
+  it('refuses to replace saved records with an empty ledger unless the phone emptied it on purpose', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'sync', sheets: [], raw: raw(3) });
+    const blocked = env.post({ action: 'sync', sheets: [{ name: '支出總表', columns: [{ header: '日期', type: 'text' }], rows: [] }], raw: raw(0) });
+    expect(blocked).toMatchObject({ ok: false, error: 'wouldErase', counts: { expenses: 3 } });
+    expect(env.sheets.some(s => s.name === '支出總表')).toBe(false); // nothing was touched
+    expect(env.post({ action: 'getLedger' }).counts.expenses).toBe(3);
+
+    expect(env.post({ action: 'sync', sheets: [], raw: raw(0), allowEmpty: true })).toMatchObject({ ok: true });
+    expect(env.post({ action: 'getLedger' }).counts.expenses).toBe(0);
+  });
+
+  it('still accepts a sync from an older app that sends no raw data', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'sync', sheets: [], raw: raw(1) });
+    expect(env.post({ action: 'sync', sheets: [] })).toMatchObject({ ok: true, rawSaved: false });
+    expect(env.post({ action: 'getLedger' }).counts.expenses).toBe(1);
   });
 });

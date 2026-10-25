@@ -49,9 +49,17 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     switch (req.action) {
       case 'ping':
-        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH, features: ['quickAdd', 'quickAddType'] });
-      case 'sync':
-        return json_(syncLedger_(ss, req.sheets || []));
+        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH, features: ['quickAdd', 'quickAddType', 'ledgerRestore'] });
+      case 'sync': {
+        var blocked = rawGuard_(ss, req.raw, req.allowEmpty === true);
+        if (blocked) return json_(blocked);
+        var synced = syncLedger_(ss, req.sheets || []);
+        if (req.raw) writeRaw_(ss, req.raw, synced.syncedAt);
+        synced.rawSaved = !!req.raw;
+        return json_(synced);
+      }
+      case 'getLedger':
+        return json_(getLedger_(ss));
       case 'getResources':
         return json_(getResources_(ss));
       case 'appendResource':
@@ -148,6 +156,69 @@ function syncLedger_(ss, sheets) {
     count++;
   });
   return { ok: true, syncedAt: new Date().toISOString(), sheets: count };
+}
+
+/* ---------- 記帳原始資料：讓 App 在換手機或資料不見時還原 ---------- */
+
+var RAW_SHEET = '_記帳原始資料';
+var RAW_TABLES = ['expenses', 'exchanges', 'trips', 'paymentMethods', 'categories', 'settings'];
+
+function rawCounts_(tables) {
+  var counts = {};
+  RAW_TABLES.forEach(function (t) { counts[t] = (tables && tables[t] ? tables[t].length : 0); });
+  return counts;
+}
+
+/** Reads the hidden sheet: { tables, syncedAt, counts }, or null tables when it does not exist yet. */
+function readRaw_(ss) {
+  var sh = ss.getSheetByName(RAW_SHEET);
+  if (!sh || sh.getLastRow() < 2) return { tables: null, syncedAt: '', counts: rawCounts_(null) };
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+  var tables = {};
+  var syncedAt = '';
+  RAW_TABLES.forEach(function (t) { tables[t] = []; });
+  rows.forEach(function (r) {
+    var table = String(r[0]);
+    if (table === '_meta') {
+      try { syncedAt = JSON.parse(String(r[1])).syncedAt || ''; } catch (err) {}
+      return;
+    }
+    if (!tables[table]) return;
+    try { tables[table].push(JSON.parse(String(r[1]))); } catch (err) {}
+  });
+  return { tables: tables, syncedAt: syncedAt, counts: rawCounts_(tables) };
+}
+
+/**
+ * Refuses to replace saved expenses or exchanges with an empty ledger unless the app says the phone
+ * emptied it on purpose, so a new or wiped phone cannot erase the only copy before it is restored.
+ */
+function rawGuard_(ss, raw, allowEmpty) {
+  if (!raw || allowEmpty) return null;
+  var incoming = rawCounts_(raw);
+  if (incoming.expenses + incoming.exchanges > 0) return null;
+  var saved = readRaw_(ss).counts;
+  if (saved.expenses + saved.exchanges === 0) return null;
+  return {
+    ok: false, error: 'wouldErase', counts: saved,
+    message: '試算表裡有 ' + saved.expenses + ' 筆支出、' + saved.exchanges + ' 筆換匯，這支手機卻是空的。請先到設定「從試算表還原記帳」。'
+  };
+}
+
+function writeRaw_(ss, raw, syncedAt) {
+  var sh = ss.getSheetByName(RAW_SHEET) || ss.insertSheet(RAW_SHEET);
+  sh.clear();
+  var values = [['表', '資料'], ['_meta', JSON.stringify({ syncedAt: syncedAt })]];
+  RAW_TABLES.forEach(function (t) {
+    (raw[t] || []).forEach(function (rec) { values.push([t, JSON.stringify(rec)]); });
+  });
+  sh.getRange(1, 1, values.length, 2).setValues(values);
+  if (sh.hideSheet) sh.hideSheet();
+}
+
+function getLedger_(ss) {
+  var r = readRaw_(ss);
+  return { ok: true, tables: r.tables, syncedAt: r.syncedAt, counts: r.counts };
 }
 
 /* ---------- 資源 ---------- */

@@ -6,6 +6,7 @@ import { ExportSheet } from '../data/ExportSheet';
 import { monthKey, monthLabel, slashDate, today, weekday } from '../../domain/dates';
 import { countdownLabel, upcomingKeyDates } from '../../domain/keyDates';
 import { getKeyDates } from '../../db/keyDates';
+import type { RestoreOffer } from '../../db/sheetsSync';
 import { formatAmount } from '../../domain/format';
 import { summarize } from '../../domain/money';
 import { activeTrips, budgetStatus } from '../../domain/budget';
@@ -58,6 +59,7 @@ export function HomePage() {
   const month = monthKey(today());
   const thisMonth = L.expenses.filter(e => monthKey(e.date) === month);
   const sum = summarize(thisMonth, L.money.expenses);
+  const restoreOffer = useLiveQuery(() => getSetting<RestoreOffer | null>('gsRestoreOffer', null), [], null);
   const keyDates = useLiveQuery(async () => upcomingKeyDates(await getKeyDates(), today()).slice(0, 4), [], []);
   const monthlyBudget = useLiveQuery(() => getSetting<number>('budgetMonthly', 0), [], 0);
   const living = monthlyBudget > 0 ? budgetStatus(summarize(thisMonth.filter(e => e.mode === 'daily'), L.money.expenses).twd, monthlyBudget) : null;
@@ -88,6 +90,13 @@ export function HomePage() {
               請按 Safari 的「分享」→<b>「加入主畫面」</b>，之後從桌面圖示開啟。在 Safari 分頁裡輸入的資料不會出現在主畫面的 App。
             </span>
           </div>
+        )}
+        {restoreOffer && (
+          <button type="button" className="banner" onClick={() => openSettings('sheets')}>
+            <IconAlert />
+            <span>試算表裡有 <b>{restoreOffer.counts.expenses} 筆支出</b>可以還原，記帳同步已暫停。</span>
+            <span className="muted small" style={{ marginLeft: 'auto' }}>處理 ›</span>
+          </button>
         )}
         {pending > 0 && (
           <button type="button" className="banner" onClick={showPending}>

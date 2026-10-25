@@ -6,7 +6,7 @@ import type { SheetData } from './exportRows';
 
 export const PROTOCOL = 1;
 
-export type SheetsErrorCode = 'secret' | 'protocol' | 'busy' | 'exception' | 'network' | 'config';
+export type SheetsErrorCode = 'secret' | 'protocol' | 'busy' | 'exception' | 'network' | 'config' | 'wouldErase';
 
 export class SheetsError extends Error {
   constructor(public code: SheetsErrorCode, message: string) {
@@ -75,8 +75,19 @@ export async function callScript<T extends object>(cfg: SheetsConfig, action: st
 export interface PingResult { spreadsheetUrl: string; name: string; resourcesGid: number; imageFolder?: string; features?: string[] }
 export const ping = (cfg: SheetsConfig, f?: Fetch) => callScript<PingResult>(cfg, 'ping', {}, f);
 
-export const pushLedger = (cfg: SheetsConfig, sheets: SheetData[], f?: Fetch) =>
-  callScript<{ syncedAt: string; sheets: number }>(cfg, 'sync', { sheets }, f);
+/** Full ledger records kept in the sheet's hidden _記帳原始資料 tab, so a phone can restore from it. */
+export interface RawLedger {
+  expenses: unknown[]; exchanges: unknown[]; trips: unknown[]; paymentMethods: unknown[]; categories: unknown[];
+  settings: { key: string; value: unknown }[];
+}
+export type RawCounts = Record<keyof RawLedger, number>;
+
+/** `allowEmpty` tells the script this phone emptied its ledger on purpose. */
+export const pushLedger = (cfg: SheetsConfig, sheets: SheetData[], raw?: RawLedger, allowEmpty = false, f?: Fetch) =>
+  callScript<{ syncedAt: string; sheets: number; rawSaved?: boolean }>(cfg, 'sync', { sheets, raw, allowEmpty }, f);
+
+export const getLedger = (cfg: SheetsConfig, f?: Fetch) =>
+  callScript<{ tables: RawLedger | null; syncedAt: string; counts: RawCounts }>(cfg, 'getLedger', {}, f);
 
 export interface SheetRow { row: number; values: Record<string, string> }
 export const getResources = (cfg: SheetsConfig, f?: Fetch) =>
