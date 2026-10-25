@@ -72,7 +72,7 @@ export async function callScript<T extends object>(cfg: SheetsConfig, action: st
   return data as T;
 }
 
-export interface PingResult { spreadsheetUrl: string; name: string; resourcesGid: number; imageFolder?: string }
+export interface PingResult { spreadsheetUrl: string; name: string; resourcesGid: number; imageFolder?: string; features?: string[] }
 export const ping = (cfg: SheetsConfig, f?: Fetch) => callScript<PingResult>(cfg, 'ping', {}, f);
 
 export const pushLedger = (cfg: SheetsConfig, sheets: SheetData[], f?: Fetch) =>

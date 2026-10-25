@@ -73,6 +73,8 @@ function makeEnv(secret: string, imageFolder?: string) {
   const root = makeFolder('我的雲端硬碟', '');
   let uuid = 0;
   const cache = new Map<string, string>();
+  const pages: Record<string, string> = {};
+  const fetched: string[] = [];
   const globals = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ss },
     ContentService: { createTextOutput: (t: string) => ({ setMimeType: () => ({ text: t }) }), MimeType: { JSON: 'json' } },
@@ -87,7 +89,14 @@ function makeEnv(secret: string, imageFolder?: string) {
     Session: { getScriptTimeZone: () => 'Europe/Prague' },
     DriveApp: { getRootFolder: () => root },
     CacheService: { getScriptCache: () => ({ get: (k: string) => cache.get(k) ?? null, put: (k: string, v: string) => void cache.set(k, v) }) },
-    PropertiesService: { getScriptProperties: () => ({ setProperty: () => {} }) }
+    PropertiesService: { getScriptProperties: () => ({ setProperty: () => {} }) },
+    UrlFetchApp: {
+      fetch: (u: string) => {
+        fetched.push(u);
+        const page = pages[u];
+        return { getResponseCode: () => (page === undefined ? 404 : 200), getContentText: () => page ?? '' };
+      }
+    }
   };
   const src = buildAppsScript(secret, imageFolder);
   const api = new Function(...Object.keys(globals), `${src}\nreturn { doPost, doGet };`)(...Object.values(globals)) as {
@@ -95,7 +104,7 @@ function makeEnv(secret: string, imageFolder?: string) {
     doGet: () => { text: string };
   };
   const post = (body: object) => JSON.parse(api.doPost({ postData: { contents: JSON.stringify({ app: 'CzechMate', protocol: 1, secret, ...body }) } }).text);
-  return { sheets, files, made, root, post, api, sheet: (n: string) => sheets.find(s => s.name === n)! };
+  return { sheets, files, made, root, post, api, pages, fetched, sheet: (n: string) => sheets.find(s => s.name === n)! };
 }
 
 describe('Apps Script', () => {
@@ -245,5 +254,56 @@ describe('sheets client', () => {
 
   it('links to a row of the 資源 sheet', () => {
     expect(sheetRowLink('https://docs.google.com/spreadsheets/d/X/edit', 7, 12)).toBe('https://docs.google.com/spreadsheets/d/X/edit#gid=7&range=A12');
+  });
+});
+
+describe('quickAdd from the iOS share sheet', () => {
+  const row = (env: ReturnType<typeof makeEnv>, n: number) => {
+    const sh = env.sheet('資源');
+    const head = sh.cells[0] as string[];
+    return Object.fromEntries(head.map((h, i) => [h, sh.cells[n][i]]));
+  };
+
+  it('adds a Dcard post shared as text, cleaning the link and tagging it 待整理', () => {
+    const env = makeEnv('s');
+    const r = env.post({ action: 'quickAdd', input: 'CTU 宿舍申請心得 - 交換生板 | Dcard\nhttps://www.dcard.tw/f/exchange/p/123456?utm_source=ios&ref=share' });
+    expect(r).toMatchObject({ ok: true, message: '已存入資源庫：CTU 宿舍申請心得 - 交換生板' });
+    expect(row(env, 1)).toMatchObject({
+      標題: 'CTU 宿舍申請心得 - 交換生板', 類型: 'Dcard', 階段: '不分', 網址: 'https://www.dcard.tw/f/exchange/p/123456', 標籤: '待整理'
+    });
+    expect(env.fetched).toEqual([]);
+  });
+
+  it('fetches the page title when only a link is shared, and drops tracking parameters', () => {
+    const env = makeEnv('s');
+    env.pages['https://example.com/visa?id=7'] = '<html><head><title>長期簽證 &amp; 居留 | Medium</title></head></html>';
+    env.post({ action: 'quickAdd', input: 'https://example.com/visa?id=7&utm_medium=social&fbclid=x', stage: '出發前', tags: '簽證，居留', note: '面談要帶的文件' });
+    expect(row(env, 1)).toMatchObject({ 標題: '長期簽證 & 居留', 類型: '網站', 階段: '出發前', 網址: 'https://example.com/visa?id=7', 內容: '面談要帶的文件', 標籤: '待整理;簽證;居留' });
+  });
+
+  it('falls back to the site name when the title cannot be fetched', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'quickAdd', input: 'https://www.kos.cvut.cz/' });
+    expect(row(env, 1)).toMatchObject({ 標題: 'kos.cvut.cz', 內容: '（從分享捷徑新增，待補重點）' });
+  });
+
+  it('does not add a link that is already in the sheet', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'quickAdd', input: 'KOS https://kos.cvut.cz' });
+    const again = env.post({ action: 'quickAdd', input: 'https://KOS.cvut.cz/' });
+    expect(again).toMatchObject({ ok: true, duplicate: true, message: '已經存過了：KOS' });
+    expect(env.sheet('資源').cells).toHaveLength(2);
+  });
+
+  it('accepts the protocol as text, as iOS Shortcuts may send it, and still checks the secret', () => {
+    const env = makeEnv('s');
+    expect(env.post({ action: 'quickAdd', protocol: '1', input: '只有文字的筆記' })).toMatchObject({ ok: true, message: '已存入資源庫：只有文字的筆記' });
+    expect(row(env, 1)).toMatchObject({ 類型: '筆記', 網址: '' });
+    expect(env.post({ action: 'quickAdd', secret: 'x', input: 'https://a.b' })).toMatchObject({ ok: false, error: 'secret' });
+    expect(env.post({ action: 'quickAdd', input: '  ' })).toMatchObject({ ok: false, message: '沒有收到網址或文字。' });
+  });
+
+  it('tells the app the script supports quickAdd', () => {
+    expect(makeEnv('s').post({ action: 'ping' }).features).toContain('quickAdd');
   });
 });

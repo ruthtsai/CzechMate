@@ -113,3 +113,12 @@
 .keydate .m { font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .keydate .left { flex-shrink: 0; font-size: 14px; color: var(--text-secondary); }
 .keydate.soon .left { color: var(--warning); font-weight: 600; }
+
+/* Step-by-step guides (settings › iOS 分享捷徑) */
+.steps { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+.steps ul { margin: 4px 0 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; }
+.steps code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--surface-subtle); padding: 1px 4px; border-radius: 4px; }
+.fields { margin-top: 4px; border-collapse: collapse; font-size: 13px; }
+.fields td { padding: 3px 8px 3px 0; vertical-align: top; }
+.fields td:first-child { color: var(--text-secondary); white-space: nowrap; }
+details.small summary { cursor: pointer; padding: 4px 0; }

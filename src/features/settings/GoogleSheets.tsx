@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { db, getSetting, setSetting } from '../../db';
+import { ShortcutGuide } from './ShortcutGuide';
 import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets, type SyncLogEntry } from '../../db/sheetsSync';
 import { refreshNotes } from '../../db/handbook';
 import { buildAppsScript, DEFAULT_IMAGE_FOLDER, generateSecret, isScriptUrl, normalizeFolderPath, ping, SheetsError } from '../../io/sheetsClient';
@@ -29,12 +30,12 @@ const stamp = (iso?: string) => {
 export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const toast = useToast();
   const s = useLiveQuery(async () => {
-    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog'] as const;
+    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog', 'gsScriptFeatures'] as const;
     const rows = await db.settings.bulkGet([...keys]);
     return Object.fromEntries(keys.map((k, i) => [k, rows[i]?.value])) as {
       gsUrl?: string; gsSecret?: string; gsSheetUrl?: string; gsSheetName?: string; gsAutoSync?: boolean; gsLastSyncAt?: string;
       gsImageFolder?: string; gsScriptImageFolder?: string;
-      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean; gsSyncLog?: SyncLogEntry[];
+      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean; gsSyncLog?: SyncLogEntry[]; gsScriptFeatures?: string[];
     };
   }, []);
   const appOnly = useLiveQuery(() => db.resources.filter(r => (r.source ?? 'app') === 'app').count(), [], 0);
@@ -75,7 +76,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
     setBusy('測試中…');
     try {
       const r = await ping(cfg);
-      await setSetting('gsScriptImageFolder', r.imageFolder ?? '');
+      await Promise.all([setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsScriptFeatures', r.features ?? [])]);
       setKeyRotated(false);
       toast(r.imageFolder === imageFolder ? `連線正常，圖片資料夾：${r.imageFolder}` : '連線正常，但腳本還是舊版，請重新複製腳本並部署新版本。', { ok: r.imageFolder === imageFolder });
     } catch (e) {
@@ -111,7 +112,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
     setBusy('連線中…');
     try {
       const r = await ping({ url: u, secret });
-      await Promise.all([setSetting('gsUrl', u), setSetting('gsSheetUrl', r.spreadsheetUrl), setSetting('gsSheetName', r.name), setSetting('gsResourcesGid', r.resourcesGid), setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsLastError', ''), setSetting('gsDirty', true)]);
+      await Promise.all([setSetting('gsUrl', u), setSetting('gsSheetUrl', r.spreadsheetUrl), setSetting('gsSheetName', r.name), setSetting('gsResourcesGid', r.resourcesGid), setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsScriptFeatures', r.features ?? []), setSetting('gsLastError', ''), setSetting('gsDirty', true)]);
       setUrl(null);
       toast(`已連線到「${r.name}」。`);
       setBusy('第一次同步中…');
@@ -243,9 +244,11 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
         </Field>
         <button type="button" className="btn btn-primary" onClick={connect} disabled={!!busy}>{busy && !linked ? busy : '連線'}</button>
         <p className="muted tiny" style={{ margin: 0 }}>
-          網址與金鑰只存在這支手機（也會包含在你的備份檔裡），不會上傳到其他地方。試算表會多出「資源」與五個記帳工作表；你自己的其他工作表不會被動到。
+          網址與金鑰只存在這支手機，不會上傳到其他地方；備份檔預設不包含它們。試算表會多出「資源」與五個記帳工作表；你自己的其他工作表不會被動到。
         </p>
       </div>
+
+      {linked && <ShortcutGuide url={s.gsUrl!} secret={s.gsSecret ?? ''} supported={!!s.gsScriptFeatures?.includes('quickAdd')} />}
 
       {linked && (
         <div className="setgroup">

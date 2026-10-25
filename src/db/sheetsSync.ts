@@ -207,5 +207,5 @@ export async function unlinkSheets() {
     await db.resources.filter(r => r.source === 'sheet' || r.source === 'pending').modify({ source: 'app' });
     await db.outbox.clear();
   });
-  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsSyncLog'].map(k => db.settings.delete(k)));
+  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsSyncLog', 'gsScriptFeatures'].map(k => db.settings.delete(k)));
 }

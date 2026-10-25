@@ -33,7 +33,8 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: 'protocol', message: '無法讀取請求內容。' });
   }
-  if (!req || req.app !== 'CzechMate' || req.protocol !== PROTOCOL) {
+  // iOS Shortcuts may send the protocol as text, so compare as numbers.
+  if (!req || req.app !== 'CzechMate' || Number(req.protocol) !== PROTOCOL) {
     return json_({ ok: false, error: 'protocol', message: 'App 與腳本版本不符，請在 App 重新複製腳本並部署新版本。' });
   }
   // The right secret always gets through, so strangers guessing cannot lock the phone out.
@@ -48,13 +49,15 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     switch (req.action) {
       case 'ping':
-        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH });
+        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH, features: ['quickAdd'] });
       case 'sync':
         return json_(syncLedger_(ss, req.sheets || []));
       case 'getResources':
         return json_(getResources_(ss));
       case 'appendResource':
         return json_(appendResource_(ss, req.resource || {}));
+      case 'quickAdd':
+        return json_(quickAdd_(ss, req));
       case 'uploadImage':
         return json_(uploadImage_(String(req.name || ''), String(req.mime || 'image/jpeg'), String(req.base64 || '')));
       case 'getImages':
@@ -230,6 +233,105 @@ function appendResource_(ss, res) {
   });
   sh.appendRow(row);
   return { ok: true, id: id, row: sh.getLastRow() };
+}
+
+/* ---------- iOS 分享捷徑：從分享選單快速新增 ---------- */
+
+var STAGE_LABELS = ['出發前', '抵達後', '旅遊', '不分'];
+
+/** Finds the first http(s) URL in shared text. */
+function firstUrl_(text) {
+  var m = String(text || '').match(/https?:\/\/[^\s<>"'）)]+/i);
+  return m ? m[0].replace(/[.,;:!?。，、！？]+$/, '') : '';
+}
+
+/** Drops tracking parameters; Dcard links keep only the post path. */
+function cleanUrl_(url) {
+  if (!url) return '';
+  if (/^https?:\/\/(www\.)?dcard\.tw\//i.test(url)) return url.split(/[?#]/)[0];
+  var parts = url.split('#')[0].split('?');
+  if (parts.length < 2) return parts[0];
+  var kept = parts[1].split('&').filter(function (kv) { return kv && !/^(utm_[a-z]+|fbclid|gclid|igshid|ref|ref_src|si)=/i.test(kv); });
+  return kept.length ? parts[0] + '?' + kept.join('&') : parts[0];
+}
+
+/** Same rule as the app: lowercase, no trailing slash. */
+function urlKey_(url) {
+  return String(url || '').trim().toLowerCase().replace(/\/+$/, '');
+}
+
+function typeForUrl_(url) {
+  if (!url) return '筆記';
+  if (/^https?:\/\/(www\.)?dcard\.tw\//i.test(url)) return 'Dcard';
+  return '網站';
+}
+
+/** The page <title>, or '' when it cannot be fetched. */
+function fetchTitle_(url) {
+  if (typeof UrlFetchApp === 'undefined') return '';
+  try {
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+    if (res.getResponseCode() >= 400) return '';
+    var m = String(res.getContentText()).slice(0, 200000).match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    return m ? decodeEntities_(m[1]).replace(/\s+/g, ' ').trim() : '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function decodeEntities_(s) {
+  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'")
+    .replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(Number(n)); });
+}
+
+/** Removes site names such as " - Dcard" or " | Medium" from a page title. */
+function trimTitle_(title) {
+  var t = String(title || '').replace(/\s*[-|｜–]\s*(Dcard|Medium|HackMD|YouTube|Facebook|Instagram|Threads)\s*$/i, '').trim();
+  return t.length > 80 ? t.slice(0, 80) + '…' : t;
+}
+
+/**
+ * Adds one row from the iOS share sheet. `input` is whatever was shared (a URL, or text with a URL);
+ * `title`, `stage`, `tags` and `note` are optional. A URL already in the sheet is not added twice.
+ * Every answer carries `message`, which the shortcut shows as a notification.
+ */
+function quickAdd_(ss, req) {
+  var input = String(req.input || '').trim();
+  var url = cleanUrl_(String(req.url || '').trim() || firstUrl_(input));
+  if (!url && !input) return { ok: false, error: 'exception', message: '沒有收到網址或文字。' };
+
+  var sh = resourceSheet_(ss);
+  var cols = resourceColumns_(sh);
+  var lastRow = sh.getLastRow();
+  if (url && lastRow >= 2) {
+    var key = urlKey_(url);
+    var data = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (urlKey_(cellText_(data[i][cols['網址']])) === key) {
+        var existing = cellText_(data[i][cols['標題']]);
+        return { ok: true, duplicate: true, row: i + 2, title: existing, message: '已經存過了：' + existing };
+      }
+    }
+  }
+
+  // Title: given > shared text without the URL > the page's <title> > the address.
+  // Remove the link as shared (with its tracking parameters) before the cleaned one.
+  var shared = firstUrl_(input);
+  var rest = (shared ? input.replace(shared, '') : input).replace(url, '').trim();
+  var title = trimTitle_(String(req.title || '').trim() || rest.split(/\n/)[0] || (url ? fetchTitle_(url) : ''));
+  if (!title) title = url ? url.replace(/^https?:\/\/(www\.)?/i, '').split(/[/?#]/)[0] : rest.slice(0, 30);
+
+  var stage = STAGE_LABELS.indexOf(String(req.stage || '')) >= 0 ? String(req.stage) : '不分';
+  var tags = ['待整理'].concat(String(req.tags || '').split(/[;；,，]/).map(function (t) { return t.trim(); }).filter(String));
+  var note = String(req.note || '').trim();
+  var extra = rest.indexOf('\n') >= 0 ? rest.slice(rest.indexOf('\n') + 1).trim() : '';
+  var content = [note, extra].filter(String).join('\n') || '（從分享捷徑新增，待補重點）';
+
+  var out = appendResource_(ss, {
+    '標題': title, '類型': typeForUrl_(url), '階段': stage, '網址': url, '內容': content,
+    '標籤': tags.filter(function (t, i) { return tags.indexOf(t) === i; }).join(';')
+  });
+  return { ok: true, id: out.id, row: out.row, title: title, message: '已存入資源庫：' + title };
 }
 
 /* ---------- 雲端硬碟圖片 ---------- */
