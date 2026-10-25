@@ -248,7 +248,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
         </p>
       </div>
 
-      {linked && <ShortcutGuide url={s.gsUrl!} secret={s.gsSecret ?? ''} supported={!!s.gsScriptFeatures?.includes('quickAdd')} />}
+      {linked && <ShortcutGuide url={s.gsUrl!} secret={s.gsSecret ?? ''} supported={!!s.gsScriptFeatures?.includes('quickAddType')} />}
 
       {linked && (
         <div className="setgroup">

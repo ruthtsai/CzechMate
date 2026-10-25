@@ -49,7 +49,7 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     switch (req.action) {
       case 'ping':
-        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH, features: ['quickAdd'] });
+        return json_({ ok: true, spreadsheetUrl: ss.getUrl(), name: ss.getName(), resourcesGid: resourceSheet_(ss).getSheetId(), imageFolder: IMAGE_FOLDER_PATH, features: ['quickAdd', 'quickAddType'] });
       case 'sync':
         return json_(syncLedger_(ss, req.sheets || []));
       case 'getResources':
@@ -238,6 +238,7 @@ function appendResource_(ss, res) {
 /* ---------- iOS 分享捷徑：從分享選單快速新增 ---------- */
 
 var STAGE_LABELS = ['出發前', '抵達後', '旅遊', '不分'];
+var TYPE_LABELS = ['筆記', 'Dcard', '網站', '截圖', '文件'];
 
 /** Finds the first http(s) URL in shared text. */
 function firstUrl_(text) {
@@ -286,13 +287,37 @@ function decodeEntities_(s) {
 
 /** Removes site names such as " - Dcard" or " | Medium" from a page title. */
 function trimTitle_(title) {
-  var t = String(title || '').replace(/\s*[-|｜–]\s*(Dcard|Medium|HackMD|YouTube|Facebook|Instagram|Threads)\s*$/i, '').trim();
+  var t = String(title || '')
+    .replace(/\s*[|｜]\s*by\s+[^|｜]+[|｜]\s*Medium\s*$/i, '')
+    .replace(/\s*[-|｜–]\s*(Dcard|Medium|HackMD|YouTube|Facebook|Instagram|Threads)\s*$/i, '')
+    .trim();
   return t.length > 80 ? t.slice(0, 80) + '…' : t;
+}
+
+/** A title written into the link itself, e.g. Medium's /@user/文章標題-9b630fc0c3ab; '' when there is none. */
+function titleFromSlug_(url) {
+  var path = String(url || '').replace(/^https?:\/\/[^/]+/i, '').split(/[?#]/)[0].replace(/\/+$/, '');
+  var last = path.split('/').pop() || '';
+  try {
+    last = decodeURIComponent(last);
+  } catch (err) {
+    return '';
+  }
+  last = last.replace(/-[0-9a-f]{8,16}$/i, '').replace(/\.(html?|php)$/i, '');
+  // Only worth it when the slug reads like words: CJK text, or several words joined by dashes.
+  if (!/[^\x00-\x7f]/.test(last) && last.split(/[-_]/).length < 3) return '';
+  return last.replace(/[-_]+/g, ' ').trim();
+}
+
+/** Shortcuts may pass the link itself as the page name; that is not a title. */
+function usableTitle_(t) {
+  t = String(t || '').trim();
+  return /^https?:\/\//i.test(t) ? '' : t;
 }
 
 /**
  * Adds one row from the iOS share sheet. `input` is whatever was shared (a URL, or text with a URL);
- * `title`, `stage`, `tags` and `note` are optional. A URL already in the sheet is not added twice.
+ * `title`, `type`, `stage`, `tags` and `note` are optional. A URL already in the sheet is not added twice.
  * Every answer carries `message`, which the shortcut shows as a notification.
  */
 function quickAdd_(ss, req) {
@@ -314,13 +339,15 @@ function quickAdd_(ss, req) {
     }
   }
 
-  // Title: given > shared text without the URL > the page's <title> > the address.
+  // Title: given (Safari's page name) > shared text without the URL > the page's <title>
+  // > words in the link > the site's address. Some sites (Medium) refuse Google's servers.
   // Remove the link as shared (with its tracking parameters) before the cleaned one.
   var shared = firstUrl_(input);
   var rest = (shared ? input.replace(shared, '') : input).replace(url, '').trim();
-  var title = trimTitle_(String(req.title || '').trim() || rest.split(/\n/)[0] || (url ? fetchTitle_(url) : ''));
+  var title = trimTitle_(usableTitle_(req.title) || rest.split(/\n/)[0] || (url ? fetchTitle_(url) || titleFromSlug_(url) : ''));
   if (!title) title = url ? url.replace(/^https?:\/\/(www\.)?/i, '').split(/[/?#]/)[0] : rest.slice(0, 30);
 
+  var type = TYPE_LABELS.indexOf(String(req.type || '')) >= 0 ? String(req.type) : typeForUrl_(url);
   var stage = STAGE_LABELS.indexOf(String(req.stage || '')) >= 0 ? String(req.stage) : '不分';
   var tags = ['待整理'].concat(String(req.tags || '').split(/[;；,，]/).map(function (t) { return t.trim(); }).filter(String));
   var note = String(req.note || '').trim();
@@ -328,7 +355,7 @@ function quickAdd_(ss, req) {
   var content = [note, extra].filter(String).join('\n') || '（從分享捷徑新增，待補重點）';
 
   var out = appendResource_(ss, {
-    '標題': title, '類型': typeForUrl_(url), '階段': stage, '網址': url, '內容': content,
+    '標題': title, '類型': type, '階段': stage, '網址': url, '內容': content,
     '標籤': tags.filter(function (t, i) { return tags.indexOf(t) === i; }).join(';')
   });
   return { ok: true, id: out.id, row: out.row, title: title, message: '已存入資源庫：' + title };

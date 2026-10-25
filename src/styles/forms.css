@@ -122,3 +122,4 @@
 .fields td { padding: 3px 8px 3px 0; vertical-align: top; }
 .fields td:first-child { color: var(--text-secondary); white-space: nowrap; }
 details.small summary { cursor: pointer; padding: 4px 0; }
+.guide-h { margin: 6px 0 0; font-size: 14px; font-weight: 600; }

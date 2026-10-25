@@ -303,7 +303,36 @@ describe('quickAdd from the iOS share sheet', () => {
     expect(env.post({ action: 'quickAdd', input: '  ' })).toMatchObject({ ok: false, message: '沒有收到網址或文字。' });
   });
 
+  it('uses the page name from Safari, trimming Medium author suffixes', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'quickAdd', input: 'https://medium.com/@a/x-1', title: '降落布拉格｜極力生存篇 | by Hannah | Medium' });
+    expect(row(env, 1)).toMatchObject({ 標題: '降落布拉格｜極力生存篇' });
+    expect(env.fetched).toEqual([]);
+  });
+
+  it('reads the title from a Medium link when the page refuses Google', () => {
+    const env = makeEnv('s');
+    const url = 'https://medium.com/@yuhanhuang.hannah/%E9%99%8D%E8%90%BD%E5%B8%83%E6%8B%89%E6%A0%BC-%E6%A5%B5%E5%8A%9B%E7%94%9F%E5%AD%98%E7%AF%87-9b630fc0c3ab';
+    env.post({ action: 'quickAdd', input: url, title: url }); // Shortcuts may send the link as the name
+    expect(row(env, 1)).toMatchObject({ 標題: '降落布拉格 極力生存篇', 類型: '網站' });
+    expect(env.fetched).toEqual([url]);
+  });
+
+  it('keeps the site name when the link has no words in it', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'quickAdd', input: 'https://example.com/p/12345' });
+    expect(row(env, 1)).toMatchObject({ 標題: 'example.com' });
+  });
+
+  it('lets the shortcut choose the type, ignoring unknown ones', () => {
+    const env = makeEnv('s');
+    env.post({ action: 'quickAdd', input: 'https://a.example/x', title: 'A', type: '文件', stage: '抵達後' });
+    env.post({ action: 'quickAdd', input: 'https://b.example/y', title: 'B', type: '影片' });
+    expect(row(env, 1)).toMatchObject({ 類型: '文件', 階段: '抵達後' });
+    expect(row(env, 2)).toMatchObject({ 類型: '網站', 階段: '不分' });
+  });
+
   it('tells the app the script supports quickAdd', () => {
-    expect(makeEnv('s').post({ action: 'ping' }).features).toContain('quickAdd');
+    expect(makeEnv('s').post({ action: 'ping' }).features).toEqual(['quickAdd', 'quickAddType']);
   });
 });
