@@ -4,14 +4,11 @@ import { db } from '../../db';
 import { RESOURCE_TYPES, RESOURCE_TYPE_LABEL, STAGES, STAGE_LABEL, type ResourceType, type Stage } from '../../domain/constants';
 import { searchResources, searchSections, snippet, tagCounts, toTerms } from '../../domain/search';
 import { stripMarkdown } from '../../domain/markdown';
-import { slashDate } from '../../domain/dates';
 import { canonicalNoteUrl, isHackmdNote } from '../../io/hackmd';
-import { syncHandbooks } from '../../db/handbook';
-import { getSetting } from '../../db';
-import { IconBook, IconCheck, IconPlus } from '../../components/Icons';
+import { IconBook, IconPlus } from '../../components/Icons';
 import { SearchBox } from '../../components/SearchBox';
 import { PageHeader } from '../../components/PageHeader';
-import { EmptyState, useToast } from '../../components/ui';
+import { EmptyState } from '../../components/ui';
 import { Highlighted, ResourceCard } from './parts';
 import { useResourceEditors } from './ResourceEditors';
 import { useHandbookReader } from './HandbookReader';
@@ -22,12 +19,9 @@ let remembered: LibFilters = { q: '', stage: 'all', type: 'all', tag: null };
 
 export function LibraryPage() {
   const { openResource, editResource } = useResourceEditors();
-  const toast = useToast();
   const resources = useLiveQuery(() => db.resources.toArray(), []);
   const sections = useLiveQuery(() => db.handbookSections.toArray(), [], []);
   const notes = useLiveQuery(async () => new Map((await db.noteCache.toArray()).map(n => [n.url, stripMarkdown(n.markdown)])), [], new Map<string, string>());
-  const syncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
-  const [syncing, setSyncing] = useState<string | null>(null);
   const [f, setF] = useState<LibFilters>(remembered);
   const set = (patch: Partial<LibFilters>) => setF(prev => (remembered = { ...prev, ...patch }));
 
@@ -42,18 +36,6 @@ export function LibraryPage() {
   const pageCount = useMemo(() => new Set(sections.map(x => x.pageUrl)).size, [sections]);
   const openReader = useHandbookReader();
   const handbookHits = useMemo(() => searchSections(sections, f.q).slice(0, 30), [sections, f.q]);
-
-  async function syncNow() {
-    setSyncing('準備中…');
-    try {
-      const r = await syncHandbooks(setSyncing);
-      toast(r.failed.length ? `已同步 ${r.pages - r.failed.length} 篇，有 ${r.failed.length} 篇失敗，請稍後再試。` : `已同步 ${r.pages} 篇。`, { ok: !r.failed.length });
-    } catch {
-      toast('無法連線到 HackMD，請確認網路後再試。', { ok: false });
-    } finally {
-      setSyncing(null);
-    }
-  }
 
   const filtering = f.q.trim() || f.stage !== 'all' || f.type !== 'all' || f.tag;
   const clearAll = () => set({ q: '', stage: 'all', type: 'all', tag: null });
@@ -84,22 +66,9 @@ export function LibraryPage() {
           </div>
         )}
 
-        <div className="sync">
-          {syncing ? (
-            <span>生存手冊同步中：{syncing}</span>
-          ) : syncedAt ? (
-            <>
-              <IconCheck />
-              <span>生存手冊已同步 · {slashDate(syncedAt.slice(0, 10))}</span>
-              <button type="button" onClick={syncNow}>重新同步</button>
-            </>
-          ) : (
-            <>
-              <span>尚未同步生存手冊，同步後就能離線搜尋。</span>
-              <button type="button" onClick={syncNow}>立即同步</button>
-            </>
-          )}
-        </div>
+        {sections.length === 0 && (
+          <div className="sync"><span>尚未同步生存手冊。到設定 › 同步生存手冊，同步後就能離線搜尋。</span></div>
+        )}
 
         {!terms.length && sections.length > 0 && (
           <button type="button" className="res" onClick={() => openReader()}>

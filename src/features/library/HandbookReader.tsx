@@ -74,7 +74,7 @@ function PageView({ page, heading, onBack, onOpen }: { page: Page; heading?: str
           <span className="muted tiny">下載於 {slashDate(note.fetchedAt.slice(0, 10))}，離線也能看。</span>
         </>
       ) : (
-        <p className="muted small">{loading ? '正在下載…' : '這一篇還沒有下載。請連上網路後，到資源庫按「重新同步」生存手冊。'}</p>
+        <p className="muted small">{loading ? '正在下載…' : '這一篇還沒有下載。請連上網路後，到設定按「同步生存手冊」。'}</p>
       )}
     </>
   );
@@ -113,7 +113,7 @@ function HandbookSheet({ target, onClose }: { target: Target | null; onClose: ()
             <button type="button" onClick={onClose}>關閉</button>
           </div>
           {pages.length === 0 ? (
-            <p className="muted small" style={{ margin: 0 }}>還沒有同步。請在資源庫按「立即同步」，同步後就能離線閱讀與搜尋。</p>
+            <p className="muted small" style={{ margin: 0 }}>還沒有同步。請到設定按「同步生存手冊」，同步後就能離線閱讀與搜尋。</p>
           ) : (
             <div className="list">
               {pages.map(p => (
