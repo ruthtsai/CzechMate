@@ -16,6 +16,7 @@ import { ManageCategories, ManageKeyDates, ManagePayments, ManageTrips } from '.
 import { ImportResources, ManagePins, ManageTags } from './ManageLibrary';
 import { GoogleSheetsSettings } from './GoogleSheets';
 import { syncHandbooks } from '../../db/handbook';
+import { useSheetsLinkStatus } from '../sync/useSheetsLinkStatus';
 
 const THEME_OPTIONS = [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']] as const;
 const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/resources_template.csv`;
@@ -56,8 +57,10 @@ export function SettingsSheet({ open, initialScreen = 'main', onClose }: { open:
     if (Math.round(n) !== monthlyBudget) await setSetting('budgetMonthly', Math.round(n));
   }
   const fileInput = useRef<HTMLInputElement>(null);
-  const sheetName = useLiveQuery(() => getSetting<string>('gsSheetName', ''), [], '');
-  const hasSheetsSecret = useLiveQuery(async () => !!(await getSetting<string>('gsUrl', '')), [], false);
+  const sheets = useSheetsLinkStatus();
+  const sheetName = sheets?.sheetName;
+  // The backup option only matters once there is an address and key to include.
+  const hasSheetsSecret = !!sheets?.url;
   const hbSyncedAt = useLiveQuery(() => getSetting<string | undefined>('handbookSyncedAt', undefined), []);
   const [hbBusy, setHbBusy] = useState<string | null>(null);
 

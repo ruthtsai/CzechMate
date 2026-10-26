@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { db, setSetting } from '../../db';
+import { db } from '../../db';
 import { ShortcutGuide } from './ShortcutGuide';
 import { sheetsLink } from '../../db/sheetsLink';
-import type { RestoreOffer, SyncLogEntry } from '../../db/sheetsSync';
+import { useLedgerUnsent, useSheetsLinkStatus } from '../sync/useSheetsLinkStatus';
 import { LedgerRestore } from './LedgerRestore';
 import { buildAppsScript, DEFAULT_IMAGE_FOLDER, isScriptUrl, normalizeFolderPath, SheetsError } from '../../io/sheetsClient';
 import { Field } from '../../components/form';
@@ -30,18 +30,10 @@ const stamp = (iso?: string) => {
 
 export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const toast = useToast();
-  const s = useLiveQuery(async () => {
-    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog', 'gsScriptFeatures', 'gsRestoreOffer'] as const;
-    const rows = await db.settings.bulkGet([...keys]);
-    return Object.fromEntries(keys.map((k, i) => [k, rows[i]?.value])) as {
-      gsUrl?: string; gsSecret?: string; gsSheetUrl?: string; gsSheetName?: string; gsAutoSync?: boolean; gsLastSyncAt?: string;
-      gsImageFolder?: string; gsScriptImageFolder?: string;
-      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsSyncLog?: SyncLogEntry[]; gsScriptFeatures?: string[]; gsRestoreOffer?: RestoreOffer;
-    };
-  }, []);
+  const s = useSheetsLinkStatus();
+  const unsent = useLedgerUnsent();
   const appOnly = useLiveQuery(() => db.resources.filter(r => (r.source ?? 'app') === 'app').count(), [], 0);
   const queued = useLiveQuery(() => db.outbox.count(), [], 0);
-  const unsent = useLiveQuery(() => sheetsLink.ledgerNeedsSending(), [], false);
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [showScript, setShowScript] = useState(false);
@@ -51,23 +43,21 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
 
   // Create the secret up front: iOS only allows clipboard writes directly inside the tap, with no await before it.
   // Unlinking drops the key, so a new one is made then too.
-  const hasKey = !!s?.gsSecret;
+  const hasKey = !!s?.key;
   useEffect(() => {
     if (!hasKey) sheetsLink.ensureKey();
   }, [hasKey]);
 
   if (!s) return <Header onBack={onBack} />;
 
-  const linked = !!(s.gsUrl && s.gsSecret && s.gsSheetUrl);
-  const imageFolder = normalizeFolderPath(s.gsImageFolder ?? DEFAULT_IMAGE_FOLDER);
-  const script = s.gsSecret ? buildAppsScript(s.gsSecret, imageFolder) : '';
+  const { linked, imageFolder } = s;
+  const script = s.key ? buildAppsScript(s.key, imageFolder) : '';
   // The deployed script reports its folder on every test; a mismatch means it needs redeploying.
-  const scriptOutdated = linked && s.gsScriptImageFolder !== undefined && s.gsScriptImageFolder !== imageFolder;
-  const scriptTooOld = linked && s.gsScriptImageFolder === undefined;
+  const scriptOutdated = linked && s.scriptImageFolder !== undefined && s.scriptImageFolder !== imageFolder;
+  const scriptTooOld = linked && s.scriptImageFolder === undefined;
 
   async function saveFolder() {
-    const next = normalizeFolderPath(folder ?? imageFolder);
-    await setSetting('gsImageFolder', next);
+    await sheetsLink.setImageFolder(folder ?? imageFolder);
     setFolder(null);
     toast(linked ? '已更新資料夾。請重新複製腳本，貼到 Apps Script 後部署新版本。' : '已更新資料夾。');
   }
@@ -103,7 +93,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   }
 
   async function connect() {
-    const u = (url ?? s!.gsUrl ?? '').trim();
+    const u = (url ?? s!.url).trim();
     if (!isScriptUrl(u)) return toast('網址格式不對，請貼上「網頁應用程式」部署後、以 /exec 結尾的網址。', { ok: false });
     setBusy('連線中…');
     try {
@@ -140,11 +130,11 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
 
       {linked ? (
         <div className="card small" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span>已連線到「{s.gsSheetName}」</span>
-          <span className="muted">記帳上次同步：{stamp(s.gsLastSyncAt)}{unsent ? '（有尚未同步的變更）' : ''}</span>
-          <span className="muted">資源上次更新：{stamp(s.gsLastPullAt)}{queued ? ` · ${queued} 筆新增等待送出` : ''}</span>
-          {s.gsLastError && <span style={{ color: 'var(--warning)' }}>{s.gsLastError}</span>}
-          <a href={s.gsSheetUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>開啟試算表</a>
+          <span>已連線到「{s.sheetName}」</span>
+          <span className="muted">記帳上次同步：{stamp(s.lastSyncAt)}{unsent ? '（有尚未同步的變更）' : ''}</span>
+          <span className="muted">資源上次更新：{stamp(s.lastPullAt)}{queued ? ` · ${queued} 筆新增等待送出` : ''}</span>
+          {s.lastError && <span style={{ color: 'var(--warning)' }}>{s.lastError}</span>}
+          <a href={s.sheetUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>開啟試算表</a>
         </div>
       ) : (
         <div className="hint">
@@ -163,20 +153,20 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
           </div>
           {busy && <p className="muted small" style={{ margin: 0 }}>{busy}</p>}
           <label className="check">
-            <input type="checkbox" checked={s.gsAutoSync !== false} onChange={e => setSetting('gsAutoSync', e.target.checked)} />
+            <input type="checkbox" checked={s.autoSync} onChange={e => sheetsLink.setAutoSync(e.target.checked)} />
             記帳變更後自動同步（有網路時）
           </label>
-          {!!s.gsPullErrors?.length && (
+          {!!s.pullErrors.length && (
             <div className="hint warn">
               <b>「資源」工作表有些列沒有讀進來：</b>
-              {s.gsPullErrors.slice(0, 15).map(e => <div key={e.line}>第 {e.line} 列：{e.message}</div>)}
+              {s.pullErrors.slice(0, 15).map(e => <div key={e.line}>第 {e.line} 列：{e.message}</div>)}
             </div>
           )}
-          {!!s.gsSyncLog?.length && (
+          {!!s.log.length && (
             <details className="synclog">
-              <summary>同步紀錄（最近 {s.gsSyncLog.length} 次）</summary>
+              <summary>同步紀錄（最近 {s.log.length} 次）</summary>
               <ul>
-                {s.gsSyncLog.map((e, i) => (
+                {s.log.map((e, i) => (
                   <li key={i} className={e.ok ? '' : 'bad'}>
                     <span className="when">{stamp(e.at)}</span>
                     <span>{e.ok ? '✓' : '✕'} {e.job}：{e.message}</span>
@@ -204,7 +194,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
         )}
         {(scriptOutdated || scriptTooOld) && (
           <div className="hint warn">
-            雲端的腳本還沒更新到這個資料夾{s.gsScriptImageFolder ? `（目前是「${s.gsScriptImageFolder}」）` : ''}。請按下方「複製腳本」，到 Apps Script 全部取代後儲存，再「部署 › 管理部署作業 › 編輯（鉛筆）› 版本：新版本 › 部署」。網址不會變。完成後按「測試連線」。
+            雲端的腳本還沒更新到這個資料夾{s.scriptImageFolder ? `（目前是「${s.scriptImageFolder}」）` : ''}。請按下方「複製腳本」，到 Apps Script 全部取代後儲存，再「部署 › 管理部署作業 › 編輯（鉛筆）› 版本：新版本 › 部署」。網址不會變。完成後按「測試連線」。
           </div>
         )}
         <p className="muted tiny" style={{ margin: 0 }}>資料夾不存在時，腳本會自動建立。照片直接放在最後一層資料夾裡，試算表的「圖片檔名」填檔名即可。</p>
@@ -232,7 +222,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
           <textarea readOnly value={script} aria-label="腳本內容" style={{ minHeight: 160, fontFamily: 'ui-monospace, monospace', fontSize: 12, padding: 8, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' }} onFocus={e => e.currentTarget.select()} />
         )}
         <Field label="網頁應用程式網址" htmlFor="gs-url">
-          <input id="gs-url" type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" placeholder="https://script.google.com/macros/s/…/exec" value={url ?? s.gsUrl ?? ''} onChange={e => setUrl(e.target.value)} />
+          <input id="gs-url" type="url" inputMode="url" autoCapitalize="off" autoCorrect="off" placeholder="https://script.google.com/macros/s/…/exec" value={url ?? s.url ?? ''} onChange={e => setUrl(e.target.value)} />
         </Field>
         <button type="button" className="btn btn-primary" onClick={connect} disabled={!!busy}>{busy && !linked ? busy : '連線'}</button>
         <p className="muted tiny" style={{ margin: 0 }}>
@@ -240,9 +230,9 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
         </p>
       </div>
 
-      {linked && <LedgerRestore offer={s.gsRestoreOffer} supported={!!s.gsScriptFeatures?.includes('ledgerRestore')} lastSyncAt={s.gsLastSyncAt} />}
+      {linked && <LedgerRestore offer={s.restoreOffer} supported={!!s.scriptFeatures.includes('ledgerRestore')} lastSyncAt={s.lastSyncAt} />}
 
-      {linked && <ShortcutGuide url={s.gsUrl!} secret={s.gsSecret ?? ''} supported={!!s.gsScriptFeatures?.includes('quickAddType')} />}
+      {linked && <ShortcutGuide url={s.url} secret={s.key} supported={!!s.scriptFeatures.includes('quickAddType')} />}
 
       {linked && (
         <div className="setgroup">

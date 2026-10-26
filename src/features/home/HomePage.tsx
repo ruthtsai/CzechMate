@@ -6,7 +6,7 @@ import { ExportSheet } from '../data/ExportSheet';
 import { monthKey, monthLabel, slashDate, today, weekday } from '../../domain/dates';
 import { countdownLabel, upcomingKeyDates } from '../../domain/keyDates';
 import { getKeyDates } from '../../db/keyDates';
-import type { RestoreOffer } from '../../db/sheetsSync';
+import { useSheetsLinkStatus } from '../sync/useSheetsLinkStatus';
 import { formatAmount } from '../../domain/format';
 import { summarize } from '../../domain/money';
 import { activeTrips, budgetStatus } from '../../domain/budget';
@@ -59,7 +59,7 @@ export function HomePage() {
   const month = monthKey(today());
   const thisMonth = L.expenses.filter(e => monthKey(e.date) === month);
   const sum = summarize(thisMonth, L.money.expenses);
-  const restoreOffer = useLiveQuery(() => getSetting<RestoreOffer | null>('gsRestoreOffer', null), [], null);
+  const restoreOffer = useSheetsLinkStatus()?.restoreOffer;
   const keyDates = useLiveQuery(async () => upcomingKeyDates(await getKeyDates(), today()).slice(0, 4), [], []);
   const monthlyBudget = useLiveQuery(() => getSetting<number>('budgetMonthly', 0), [], 0);
   const living = monthlyBudget > 0 ? budgetStatus(summarize(thisMonth.filter(e => e.mode === 'daily'), L.money.expenses).twd, monthlyBudget) : null;

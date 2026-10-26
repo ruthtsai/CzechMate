@@ -6,7 +6,8 @@ import { db, getSetting, setSetting } from './index';
 import { saveExpense } from './ledger';
 import { deleteKeyDate, getKeyDates, saveKeyDate } from './keyDates';
 import { createSheetsLink } from './sheetsLink';
-import { syncLedgerNow } from './sheetsSync';
+import { queueForSheet, syncLedgerNow } from './sheetsSync';
+import { saveResource } from './resources';
 
 // The phone talks to the real Apps Script, running against an in-memory spreadsheet.
 let env: ReturnType<typeof linkedSheet>['env'];
@@ -159,6 +160,173 @@ describe('knowing when the ledger needs sending', () => {
     expect(await link.ledgerNeedsSending()).toBe(true);
     await link.syncLedger();
     expect(await link.ledgerNeedsSending()).toBe(false);
+  });
+});
+
+describe('background sync', () => {
+  const SEC = 1000;
+  let clock: number;
+  let online: boolean;
+  let actions: string[];
+  let background: ReturnType<typeof createSheetsLink>;
+  /** The script, but able to fail like a lost connection; every request it answers is recorded. */
+  let failing: boolean;
+  const remote = ((u: string, init?: RequestInit) => {
+    if (failing) return Promise.reject(new TypeError('offline'));
+    actions.push(JSON.parse(String(init?.body)).action);
+    return env.fetch(u, init);
+  }) as typeof fetch;
+  const sent = () => actions.filter(a => a === 'sync').length;
+  const pulled = () => actions.filter(a => a === 'getResources').length;
+
+  beforeEach(async () => {
+    await addExpense('午餐');
+    await link.connect(url);
+    clock = 1_000_000;
+    online = true;
+    failing = false;
+    actions = [];
+    background = createSheetsLink({ remote, now: () => clock, isOnline: () => online });
+  });
+
+  it('sends the ledger 30 s after the last change', async () => {
+    await addExpense('晚餐');
+    expect(await background.tick('ledgerChanged')).toEqual({ wakeAt: clock + 30 * SEC });
+    clock += 10 * SEC;
+    await addExpense('宵夜');
+    expect(await background.tick('ledgerChanged')).toEqual({ wakeAt: clock + 30 * SEC });
+
+    clock += 25 * SEC;
+    expect(await background.tick('timer')).toEqual({ wakeAt: clock + 5 * SEC });
+    expect(sent()).toBe(0);
+    clock += 5 * SEC;
+    expect(await background.tick('timer')).toEqual({});
+    expect(sent()).toBe(1);
+    expect(pulled()).toBe(0); // the timer only sends the ledger
+    expect(sheetItems()).toEqual(['午餐', '宵夜', '晚餐'].sort());
+  });
+
+  it('coming back to the app sends a due ledger without pulling again too soon', async () => {
+    await background.tick('start');
+    await addExpense('晚餐');
+    await background.tick('ledgerChanged');
+    clock += 31 * SEC;
+    expect(await background.tick('visible')).toEqual({});
+    expect([sent(), pulled()]).toEqual([1, 1]);
+  });
+
+  it('starting, the network returning and a request each pull right away', async () => {
+    for (const reason of ['start', 'online', 'requested'] as const) await background.tick(reason);
+    expect(pulled()).toBe(3);
+  });
+
+  it('a phone that has never sent its ledger sends it as the first backup', async () => {
+    await db.settings.delete('gsLedgerOwner');
+    await background.tick('visible');
+    expect(sent()).toBe(1);
+  });
+
+  it('sends queued resources before the ledger', async () => {
+    await addExpense('晚餐');
+    const id = await saveResource({ title: '簽證', type: 'web', stage: 'before', content: '', tags: [], url: '', pinned: false }, { source: 'pending' });
+    await queueForSheet([id]);
+    await background.tick('requested');
+    expect(actions.indexOf('appendResource')).toBeGreaterThanOrEqual(0);
+    expect(actions.indexOf('appendResource')).toBeLessThan(actions.indexOf('sync'));
+  });
+
+  it('runs one sync at a time', async () => {
+    await addExpense('晚餐');
+    await Promise.all([background.tick('requested'), background.tick('requested')]);
+    expect(sent()).toBe(1);
+  });
+
+  it('never fails the caller, even when the database cannot be read', async () => {
+    db.close();
+    await expect(background.tick('start')).resolves.toEqual({});
+    await db.open();
+  });
+
+  it('after a failure, waits 5 minutes unless the network comes back', async () => {
+    await addExpense('晚餐');
+    failing = true;
+    await background.tick('start');
+    failing = false;
+
+    clock += 60 * SEC;
+    await background.tick('visible');
+    expect(sent()).toBe(0);
+    await background.tick('online');
+    expect(sent()).toBe(1);
+  });
+
+  it('pulls resources at most every 2 minutes when the app comes back', async () => {
+    await background.tick('visible');
+    clock += 60 * SEC;
+    await background.tick('visible');
+    expect(pulled()).toBe(1);
+    clock += 61 * SEC;
+    await background.tick('visible');
+    expect(pulled()).toBe(2);
+  });
+
+  it('while a restore offer waits, sends queued resources but not the ledger', async () => {
+    await setSetting('gsRestoreOffer', { counts: { expenses: 9 }, syncedAt: '' });
+    await addExpense('晚餐');
+    const id = await saveResource({ title: '簽證', type: 'web', stage: 'before', content: '', tags: [], url: '', pinned: false }, { source: 'pending' });
+    await queueForSheet([id]);
+
+    await background.tick('requested');
+    expect(actions).toContain('appendResource');
+    expect(sent()).toBe(0);
+  });
+
+  it('does not send the ledger when automatic sync is off', async () => {
+    await setSetting('gsAutoSync', false);
+    await addExpense('晚餐');
+    await background.tick('ledgerChanged');
+    clock += 30 * SEC;
+    await background.tick('timer');
+    await background.tick('requested');
+    expect(sent()).toBe(0);
+  });
+
+  it('does nothing while offline, and catches up when the network returns', async () => {
+    online = false;
+    await addExpense('晚餐');
+    await background.tick('ledgerChanged');
+    clock += 30 * SEC;
+    expect(await background.tick('timer')).toEqual({});
+    expect(actions).toEqual([]);
+    online = true;
+    await background.tick('online');
+    expect(sent()).toBe(1);
+  });
+
+  it('does nothing when no sheet is linked', async () => {
+    await link.unlink();
+    expect(await background.tick('ledgerChanged')).toEqual({});
+    expect(await background.tick('start')).toEqual({});
+    expect(actions).toEqual([]);
+  });
+});
+
+describe('link status for the screens', () => {
+  it('describes the link and the sync preferences', async () => {
+    expect(await link.status()).toMatchObject({ linked: false, autoSync: true, imageFolder: 'CzechMate 圖片', restoreOffer: undefined });
+
+    await addExpense('午餐');
+    await link.connect(url);
+    expect(await link.status()).toMatchObject({
+      linked: true, url, sheetName: 'CzechMate 測試', sheetUrl: 'https://docs.google.com/spreadsheets/d/TEST/edit', scriptImageFolder: 'CzechMate 圖片'
+    });
+    expect((await link.status()).log[0]).toMatchObject({ job: '記帳', ok: true });
+  });
+
+  it('changes sync preferences, cleaning the folder path the user typed', async () => {
+    await link.setAutoSync(false);
+    expect(await link.setImageFolder(' 我的雲端硬碟/交換計畫// 圖片 ')).toBe('交換計畫/圖片');
+    expect(await link.status()).toMatchObject({ autoSync: false, imageFolder: '交換計畫/圖片' });
   });
 });
 

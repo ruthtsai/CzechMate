@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { db, getSetting } from '../../db';
+import { db } from '../../db';
 import { sheetRowLink } from '../../io/sheetsClient';
 import { setPinned } from '../../db/resources';
 import { RESOURCE_TYPE_LABEL } from '../../domain/constants';
@@ -10,6 +10,7 @@ import { fetchNote } from '../../db/handbook';
 import { canonicalNoteUrl, isHackmdNote } from '../../io/hackmd';
 import { ImageViewer, Markdown, StoredImage, TYPE_ICON, stageChip } from './parts';
 import { ResourceForm } from './ResourceForm';
+import { useSheetsLinkStatus } from '../sync/useSheetsLinkStatus';
 
 // Opens the resource detail and form sheets from anywhere (library, home).
 
@@ -27,11 +28,8 @@ function ResourceDetail({ id, onClose, onEdit }: { id: string | null; onClose: (
   const [noteBusy, setNoteBusy] = useState(false);
   const closeViewer = useCallback(() => setViewing(null), []);
   const noteKey = r && isHackmdNote(r.url) ? canonicalNoteUrl(r.url) : null;
-  const sheetLink = useLiveQuery(async () => {
-    if (r?.source !== 'sheet' || !r.sheetRow) return undefined;
-    const [url, gid] = await Promise.all([getSetting<string>('gsSheetUrl', ''), getSetting<number>('gsResourcesGid', 0)]);
-    return url ? sheetRowLink(url, gid, r.sheetRow) : undefined;
-  }, [r?.source, r?.sheetRow]);
+  const sheets = useSheetsLinkStatus();
+  const sheetLink = r?.source === 'sheet' && r.sheetRow && sheets?.sheetUrl ? sheetRowLink(sheets.sheetUrl, sheets.resourcesGid, r.sheetRow) : undefined;
   const note = useLiveQuery(() => (noteKey ? db.noteCache.get(noteKey) : undefined), [noteKey]);
 
   // First time a HackMD note is opened, download it (requirements MD-02).
