@@ -14,7 +14,8 @@ export class SheetsError extends Error {
   }
 }
 
-export interface SheetsConfig { url: string; secret: string }
+/** `fetch` replaces the network, e.g. with the script running in memory for tests. */
+export interface SheetsConfig { url: string; secret: string; fetch?: typeof fetch }
 
 const SECRET_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 
@@ -46,8 +47,9 @@ export const isScriptUrl = (url: string) => /^https:\/\/script\.google\.com\/(a\
 
 type Fetch = typeof fetch;
 
-export async function callScript<T extends object>(cfg: SheetsConfig, action: string, payload: object = {}, fetchImpl: Fetch = fetch): Promise<T> {
+export async function callScript<T extends object>(cfg: SheetsConfig, action: string, payload: object = {}, f?: Fetch): Promise<T> {
   if (!isScriptUrl(cfg.url) || !cfg.secret) throw new SheetsError('config', '尚未設定 Google 試算表連結。');
+  const fetchImpl = f ?? cfg.fetch ?? fetch;
   let res: Response;
   try {
     // text/plain keeps this a "simple" request, so the browser sends no CORS preflight that Apps Script cannot answer.

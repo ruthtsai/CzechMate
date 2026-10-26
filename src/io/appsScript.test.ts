@@ -1,113 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildAppsScript, callScript, generateSecret, isScriptUrl, normalizeFolderPath, sheetRowLink, SheetsError } from './sheetsClient';
-
-/* ---------- a small in-memory stand-in for the Apps Script services ---------- */
-
-class FakeRange {
-  constructor(private sh: FakeSheet, private r: number, private c: number, private nr = 1, private nc = 1) {}
-  getValues() {
-    return Array.from({ length: this.nr }, (_, i) => Array.from({ length: this.nc }, (_, j) => this.sh.cells[this.r - 1 + i]?.[this.c - 1 + j] ?? ''));
-  }
-  setValues(v: unknown[][]) {
-    v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x)));
-    return this;
-  }
-  setValue(x: unknown) { this.sh.set(this.r, this.c, x); return this; }
-  setNumberFormat(f: string) { this.sh.formats.push([this.c, f]); return this; }
-  setFontWeight() { return this; }
-  setBackground() { return this; }
-  createFilter() { this.sh.filter = true; return this; }
-}
-
-class FakeSheet {
-  cells: unknown[][] = [];
-  formats: [number, string][] = [];
-  filter = false;
-  frozen = 0;
-  constructor(public name: string, public id: number) {}
-  set(r: number, c: number, x: unknown) {
-    while (this.cells.length < r) this.cells.push([]);
-    this.cells[r - 1][c - 1] = x;
-  }
-  getSheetId() { return this.id; }
-  getRange(r: number, c: number, nr?: number, nc?: number) { return new FakeRange(this, r, c, nr, nc); }
-  getLastRow() { return this.cells.length; }
-  getLastColumn() { return Math.max(0, ...this.cells.map(r => r.length)); }
-  getFilter() { return this.filter ? { remove: () => (this.filter = false) } : null; }
-  clear() { this.cells = []; this.formats = []; }
-  hidden = false;
-  setFrozenRows(n: number) { this.frozen = n; }
-  hideSheet() { this.hidden = true; }
-  insertColumnBefore() { this.cells.forEach(r => r.unshift('')); }
-  appendRow(row: unknown[]) { this.cells.push([...row]); }
-}
-
-function makeEnv(secret: string, imageFolder?: string) {
-  const sheets: FakeSheet[] = [new FakeSheet('我的分析', 0)];
-  const files: { name: string; id: string; bytes: string; mime: string; folder: string }[] = [];
-  const ss = {
-    getUrl: () => 'https://docs.google.com/spreadsheets/d/TEST/edit',
-    getName: () => 'CzechMate 測試',
-    getSheetByName: (n: string) => sheets.find(s => s.name === n) ?? null,
-    insertSheet: (n: string) => { const s = new FakeSheet(n, sheets.length + 100); sheets.push(s); return s; }
-  };
-  const iter = <T,>(list: T[]) => { let i = 0; return { hasNext: () => i < list.length, next: () => list[i++] }; };
-  const fileObj = (f: (typeof files)[number]) => ({
-    getId: () => f.id, getName: () => f.name, getLastUpdated: () => new Date('2027-01-01T00:00:00Z'),
-    getBlob: () => ({ getContentType: () => f.mime, getBytes: () => f.bytes })
-  });
-  // Folders form a tree under My Drive; `files` holds the files of whichever folder the script writes to.
-  interface FakeFolder { name: string; children: FakeFolder[]; getFoldersByName: (n: string) => unknown; createFolder: (n: string) => FakeFolder; getFilesByName: (n: string) => unknown; getFiles: () => unknown; createFile: (b: { name: string; bytes: string; mime: string }) => unknown }
-  const made: string[] = [];
-  const makeFolder = (name: string, path: string): FakeFolder => {
-    const f: FakeFolder = {
-      name,
-      children: [],
-      getFoldersByName: (n: string) => iter(f.children.filter(c => c.name === n)),
-      createFolder: (n: string) => { const c = makeFolder(n, path ? `${path}/${n}` : n); made.push(path ? `${path}/${n}` : n); f.children.push(c); return c; },
-      getFilesByName: (n: string) => iter(files.filter(x => x.folder === path && x.name === n).map(fileObj)),
-      getFiles: () => iter(files.filter(x => x.folder === path).map(fileObj)),
-      createFile: (b: { name: string; bytes: string; mime: string }) => { const x = { ...b, id: `file-${files.length}`, folder: path }; files.push(x); return fileObj(x); }
-    };
-    return f;
-  };
-  const root = makeFolder('我的雲端硬碟', '');
-  let uuid = 0;
-  const cache = new Map<string, string>();
-  const pages: Record<string, string> = {};
-  const fetched: string[] = [];
-  const globals = {
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss },
-    ContentService: { createTextOutput: (t: string) => ({ setMimeType: () => ({ text: t }) }), MimeType: { JSON: 'json' } },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
-    Utilities: {
-      getUuid: () => `uuid-${++uuid}`,
-      base64Decode: (s: string) => `decoded:${s}`,
-      base64Encode: (b: string) => `b64:${b}`,
-      newBlob: (bytes: string, mime: string, name: string) => ({ bytes, mime, name }),
-      formatDate: (d: Date) => d.toISOString().slice(0, 10)
-    },
-    Session: { getScriptTimeZone: () => 'Europe/Prague' },
-    DriveApp: { getRootFolder: () => root },
-    CacheService: { getScriptCache: () => ({ get: (k: string) => cache.get(k) ?? null, put: (k: string, v: string) => void cache.set(k, v) }) },
-    PropertiesService: { getScriptProperties: () => ({ setProperty: () => {} }) },
-    UrlFetchApp: {
-      fetch: (u: string) => {
-        fetched.push(u);
-        const page = pages[u];
-        return { getResponseCode: () => (page === undefined ? 404 : 200), getContentText: () => page ?? '' };
-      }
-    }
-  };
-  const src = buildAppsScript(secret, imageFolder);
-  const api = new Function(...Object.keys(globals), `${src}\nreturn { doPost, doGet };`)(...Object.values(globals)) as {
-    doPost: (e: unknown) => { text: string };
-    doGet: () => { text: string };
-  };
-  const post = (body: object) => JSON.parse(api.doPost({ postData: { contents: JSON.stringify({ app: 'CzechMate', protocol: 1, secret, ...body }) } }).text);
-  return { sheets, files, made, root, post, api, pages, fetched, sheet: (n: string) => sheets.find(s => s.name === n)! };
-}
+import { makeEnv } from './scriptRunner.testkit';
 
 describe('Apps Script', () => {
   it('ships with a placeholder that the app fills with the secret', () => {
@@ -174,12 +68,13 @@ describe('Apps Script', () => {
 
   it('uploads images once and returns only new or changed ones', () => {
     const env = makeEnv('s');
-    const up = env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'AAA' });
+    const up = env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'YWJj' });
     expect(up).toMatchObject({ ok: true, name: 'a.jpg', id: 'file-0' });
-    env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'AAA' });
+    env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'YWJj' });
     expect(env.files).toHaveLength(1);
+    expect(env.files[0].bytes).toBe('abc'); // stored decoded
     const first = env.post({ action: 'getImages', names: ['A.JPG', 'missing.png'], known: {} });
-    expect(first.images[0]).toMatchObject({ name: 'A.JPG', id: 'file-0', base64: 'b64:decoded:AAA' });
+    expect(first.images[0]).toMatchObject({ name: 'A.JPG', id: 'file-0', base64: 'YWJj' });
     expect(first.images[1]).toEqual({ name: 'missing.png', missing: true });
     const again = env.post({ action: 'getImages', names: ['a.jpg'], known: { 'a.jpg': { id: 'file-0', modified: up.modified } } });
     expect(again.images[0]).toMatchObject({ unchanged: true });
@@ -191,11 +86,11 @@ describe('image folder path', () => {
   it('walks the configured path from My Drive, creating missing folders once', () => {
     const env = makeEnv('s', '我的雲端硬碟/交換計畫/CzechMate/CzechMate 圖片');
     expect(env.post({ action: 'ping' }).imageFolder).toBe('交換計畫/CzechMate/CzechMate 圖片');
-    env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'AAA' });
-    env.post({ action: 'uploadImage', name: 'b.jpg', mime: 'image/jpeg', base64: 'BBB' });
+    env.post({ action: 'uploadImage', name: 'a.jpg', mime: 'image/jpeg', base64: 'AAAA' });
+    env.post({ action: 'uploadImage', name: 'b.jpg', mime: 'image/jpeg', base64: 'BBBB' });
     expect(env.made).toEqual(['交換計畫', '交換計畫/CzechMate', '交換計畫/CzechMate/CzechMate 圖片']);
     expect(env.files.map(f => f.folder)).toEqual(['交換計畫/CzechMate/CzechMate 圖片', '交換計畫/CzechMate/CzechMate 圖片']);
-    expect(env.post({ action: 'getImages', names: ['b.jpg'], known: {} }).images[0].base64).toBe('b64:decoded:BBB');
+    expect(env.post({ action: 'getImages', names: ['b.jpg'], known: {} }).images[0].base64).toBe('BBBB');
   });
 
   it('defaults to a top-level CzechMate 圖片 folder and escapes quotes', () => {
@@ -219,7 +114,7 @@ describe('image folder path', () => {
     expect(env.sheet('資源').cells[1][1]).toBe("'=SUM(1,2)");
     expect(env.sheet('資源').cells[1][5]).toBe("'+test");
 
-    expect(env.post({ action: 'uploadImage', name: 'evil.html', mime: 'text/html', base64: 'AAA' })).toMatchObject({
+    expect(env.post({ action: 'uploadImage', name: 'evil.html', mime: 'text/html', base64: 'AAAA' })).toMatchObject({
       ok: false,
       error: 'exception'
     });
