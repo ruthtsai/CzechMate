@@ -17,3 +17,7 @@ CzechMate_Requirements_Spec.md
 .claude/
 CzechMate_Next_Phase.md
 資料整理/
+
+# Agent skills config stays local
+CLAUDE.md
+docs/agents/
