@@ -133,7 +133,7 @@ describe('sheets client', () => {
 
   it('posts JSON as text/plain with the secret in the body, never in the URL', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ ok: true, name: 'x' })));
-    await callScript(cfg, 'ping', {}, fetchImpl as unknown as typeof fetch);
+    await callScript({ ...cfg, fetch: fetchImpl as unknown as typeof fetch }, 'ping');
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(cfg.url);
     expect(url).not.toContain('sek');
@@ -143,9 +143,9 @@ describe('sheets client', () => {
 
   it('maps failures to readable errors', async () => {
     const reply = (body: string) => (async () => new Response(body)) as unknown as typeof fetch;
-    await expect(callScript(cfg, 'ping', {}, reply('{"ok":false,"error":"secret","message":"同步金鑰不正確。"}'))).rejects.toMatchObject({ code: 'secret' });
-    await expect(callScript(cfg, 'ping', {}, reply('<html>Sign in</html>'))).rejects.toMatchObject({ code: 'config' });
-    await expect(callScript(cfg, 'ping', {}, (async () => { throw new TypeError('offline'); }) as unknown as typeof fetch)).rejects.toBeInstanceOf(SheetsError);
+    await expect(callScript({ ...cfg, fetch: reply('{"ok":false,"error":"secret","message":"同步金鑰不正確。"}') }, 'ping')).rejects.toMatchObject({ code: 'secret' });
+    await expect(callScript({ ...cfg, fetch: reply('<html>Sign in</html>') }, 'ping')).rejects.toMatchObject({ code: 'config' });
+    await expect(callScript({ ...cfg, fetch: (async () => { throw new TypeError('offline'); }) as unknown as typeof fetch }, 'ping')).rejects.toBeInstanceOf(SheetsError);
     await expect(callScript({ url: '', secret: '' }, 'ping')).rejects.toMatchObject({ code: 'config' });
   });
 

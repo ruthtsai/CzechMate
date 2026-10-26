@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
-import { getSheetsConfig, overwriteSheetLedger, previewRestore, restoreLedgerFromSheet, type RestoreOffer } from '../../db/sheetsSync';
+import { sheetsLink } from '../../db/sheetsLink';
+import type { RestoreOffer } from '../../db/sheetsSync';
 import { SheetsError } from '../../io/sheetsClient';
 import { useToast } from '../../components/ui';
 
@@ -21,12 +22,10 @@ export function LedgerRestore({ offer, supported, lastSyncAt }: { offer?: Restor
   // What the user is about to confirm: a restore (with what the sheet holds) or an overwrite.
   const [confirm, setConfirm] = useState<{ kind: 'restore'; preview: RestoreOffer } | { kind: 'overwrite' } | null>(null);
 
-  async function run(label: string, fn: (cfg: NonNullable<Awaited<ReturnType<typeof getSheetsConfig>>>) => Promise<void>) {
-    const cfg = await getSheetsConfig();
-    if (!cfg) return;
+  async function run(label: string, fn: () => Promise<void>) {
     setBusy(label);
     try {
-      await fn(cfg);
+      await fn();
     } catch (e) {
       toast(e instanceof SheetsError || e instanceof Error ? e.message : '操作失敗。', { ok: false });
     } finally {
@@ -35,8 +34,8 @@ export function LedgerRestore({ offer, supported, lastSyncAt }: { offer?: Restor
   }
 
   const askRestore = () =>
-    run('讀取試算表中…', async cfg => {
-      const preview = await previewRestore(cfg);
+    run('讀取試算表中…', async () => {
+      const preview = await sheetsLink.previewRestore();
       if (preview.counts.expenses + preview.counts.exchanges + preview.counts.trips === 0) {
         toast('試算表裡還沒有記帳備份。記一筆帳、同步之後就會有。', { ok: false });
         return;
@@ -45,15 +44,15 @@ export function LedgerRestore({ offer, supported, lastSyncAt }: { offer?: Restor
     });
 
   const doRestore = () =>
-    run('還原中…', async cfg => {
-      const c = await restoreLedgerFromSheet(cfg);
+    run('還原中…', async () => {
+      const c = await sheetsLink.restoreFromSheet();
       setConfirm(null);
       toast(`已還原 ${c.expenses} 筆支出、${c.exchanges} 筆換匯、${c.trips} 個旅程。`);
     });
 
   const doOverwrite = () =>
-    run('上傳中…', async cfg => {
-      await overwriteSheetLedger(cfg);
+    run('上傳中…', async () => {
+      await sheetsLink.overwriteSheet();
       setConfirm(null);
       toast('已用這支手機的記帳更新試算表。');
     });

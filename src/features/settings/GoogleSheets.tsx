@@ -1,11 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
-import { db, getSetting, setSetting } from '../../db';
+import { db, setSetting } from '../../db';
 import { ShortcutGuide } from './ShortcutGuide';
-import { getSheetsConfig, migrateAppResources, pullResources, syncLedgerNow, unlinkSheets, type RestoreOffer, type SyncLogEntry } from '../../db/sheetsSync';
+import { sheetsLink } from '../../db/sheetsLink';
+import type { RestoreOffer, SyncLogEntry } from '../../db/sheetsSync';
 import { LedgerRestore } from './LedgerRestore';
-import { refreshNotes } from '../../db/handbook';
-import { buildAppsScript, DEFAULT_IMAGE_FOLDER, generateSecret, isScriptUrl, normalizeFolderPath, ping, SheetsError } from '../../io/sheetsClient';
+import { buildAppsScript, DEFAULT_IMAGE_FOLDER, isScriptUrl, normalizeFolderPath, SheetsError } from '../../io/sheetsClient';
 import { Field } from '../../components/form';
 import { useToast } from '../../components/ui';
 
@@ -49,11 +49,11 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const [keyRotated, setKeyRotated] = useState(false);
 
   // Create the secret up front: iOS only allows clipboard writes directly inside the tap, with no await before it.
+  // Unlinking drops the key, so a new one is made then too.
+  const hasKey = !!s?.gsSecret;
   useEffect(() => {
-    getSetting<string>('gsSecret', '').then(v => {
-      if (!v) return setSetting('gsSecret', generateSecret());
-    });
-  }, []);
+    if (!hasKey) sheetsLink.ensureKey();
+  }, [hasKey]);
 
   if (!s) return <Header onBack={onBack} />;
 
@@ -72,12 +72,9 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   }
 
   async function testConnection() {
-    const cfg = await getSheetsConfig();
-    if (!cfg) return;
     setBusy('測試中…');
     try {
-      const r = await ping(cfg);
-      await Promise.all([setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsScriptFeatures', r.features ?? [])]);
+      const r = await sheetsLink.testConnection();
       setKeyRotated(false);
       toast(r.imageFolder === imageFolder ? `連線正常，圖片資料夾：${r.imageFolder}` : '連線正常，但腳本還是舊版，請重新複製腳本並部署新版本。', { ok: r.imageFolder === imageFolder });
     } catch (e) {
@@ -87,11 +84,10 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
     }
   }
 
-  async function ensureSecret(rotate = false) {
-    if (!s!.gsSecret || rotate) {
-      await setSetting('gsSecret', generateSecret());
-      if (rotate) setKeyRotated(true);
-    }
+  async function rotateKey(message: string) {
+    await sheetsLink.rotateKey();
+    setKeyRotated(true);
+    toast(message);
   }
 
   async function copyScript() {
@@ -108,22 +104,17 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   async function connect() {
     const u = (url ?? s!.gsUrl ?? '').trim();
     if (!isScriptUrl(u)) return toast('網址格式不對，請貼上「網頁應用程式」部署後、以 /exec 結尾的網址。', { ok: false });
-    await ensureSecret();
-    const secret = await getSetting<string>('gsSecret', '');
     setBusy('連線中…');
     try {
-      const r = await ping({ url: u, secret });
-      await Promise.all([setSetting('gsUrl', u), setSetting('gsSheetUrl', r.spreadsheetUrl), setSetting('gsSheetName', r.name), setSetting('gsResourcesGid', r.resourcesGid), setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsScriptFeatures', r.features ?? []), setSetting('gsLastError', ''), setSetting('gsDirty', true)]);
-      setUrl(null);
-      toast(`已連線到「${r.name}」。`);
-      setBusy('第一次同步中…');
-      const cfg = { url: u, secret };
-      // A new or wiped phone must not overwrite a ledger already in the sheet; the restore section takes over.
-      await syncLedgerNow(cfg).catch(e => {
-        if (!(e instanceof SheetsError && e.code === 'wouldErase')) throw e;
-        toast('試算表裡已有記帳資料，請在下方「記帳備份與還原」選擇要還原或覆蓋。', { ok: false });
+      const r = await sheetsLink.connect(u, {
+        onLinked: name => {
+          setUrl(null);
+          toast(`已連線到「${name}」。`);
+          setBusy('第一次同步中…');
+        }
       });
-      await pullResources(cfg);
+      // A new or wiped phone must not overwrite a ledger already in the sheet; the restore section takes over.
+      if (r.restoreOffer) toast('試算表裡已有記帳資料，請在下方「記帳備份與還原」選擇要還原或覆蓋。', { ok: false });
     } catch (e) {
       toast(e instanceof SheetsError ? e.message : '連線失敗。', { ok: false });
     } finally {
@@ -132,8 +123,6 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   }
 
   async function job(label: string, fn: () => Promise<string>) {
-    const cfg = await getSheetsConfig();
-    if (!cfg) return;
     setBusy(label);
     try {
       toast(await fn());
@@ -143,8 +132,6 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
       setBusy(null);
     }
   }
-
-  const cfgOrThrow = async () => (await getSheetsConfig())!;
 
   return (
     <>
@@ -167,10 +154,9 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
       {linked && (
         <>
           <div className="actions">
-            <button type="button" className="btn btn-secondary" disabled={!!busy} onClick={() => job('同步記帳中…', async () => { await syncLedgerNow(await cfgOrThrow()); return '記帳已同步到試算表。'; })}>同步記帳</button>
+            <button type="button" className="btn btn-secondary" disabled={!!busy} onClick={() => job('同步記帳中…', async () => { await sheetsLink.syncLedger(); return '記帳已同步到試算表。'; })}>同步記帳</button>
             <button type="button" className="btn btn-secondary" disabled={!!busy} onClick={() => job('更新資源中…', async () => {
-              const r = await pullResources(await cfgOrThrow(), { checkAllImages: true });
-              await refreshNotes(await db.resources.toArray(), true);
+              const r = await sheetsLink.refreshResources();
               return `資源已更新：新增 ${r.added}、更新 ${r.updated}、移除 ${r.removed}${r.images ? `、圖片 ${r.images} 張` : ''}。`;
             })}>更新資源</button>
           </div>
@@ -201,7 +187,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
           {appOnly > 0 && (
             <div className="inset">
               <span className="small">App 裡有 {appOnly} 筆資源還不在試算表裡（之前用 App 或 CSV 新增的）。搬過去之後，就統一在試算表編輯。</span>
-              <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => job('搬移中…', async () => `已搬移 ${await migrateAppResources(await cfgOrThrow())} 筆到試算表。`)}>搬到試算表</button>
+              <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => job('搬移中…', async () => `已搬移 ${await sheetsLink.moveAppResources()} 筆到試算表。`)}>搬到試算表</button>
             </div>
           )}
         </>
@@ -234,7 +220,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
         </ol>
         <div className="actions">
           <button type="button" className="btn btn-secondary" onClick={copyScript}>複製腳本</button>
-          <button type="button" className="btn btn-secondary" onClick={async () => { await ensureSecret(true); toast('已重新產生同步金鑰。請複製新腳本並部署新版本，舊金鑰立即失效。'); }}>重新產生金鑰</button>
+          <button type="button" className="btn btn-secondary" onClick={() => rotateKey('已重新產生同步金鑰。請複製新腳本並部署新版本，舊金鑰立即失效。')}>重新產生金鑰</button>
         </div>
         {keyRotated && (
           <div className="hint warn">
@@ -261,14 +247,14 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
         <div className="setgroup">
           <h3>安全</h3>
           <div className="list">
-            <button type="button" className="row" onClick={async () => { await ensureSecret(true); toast('已產生新金鑰。請重新複製腳本，貼上後「管理部署作業 › 編輯 › 新版本」。'); }}>
+            <button type="button" className="row" onClick={() => rotateKey('已產生新金鑰。請重新複製腳本，貼上後「管理部署作業 › 編輯 › 新版本」。')}>
               <span className="main"><span className="t">更換金鑰</span><span className="m">懷疑網址外流時使用；舊金鑰立即失效</span></span>
             </button>
             {confirmUnlink ? (
               <div className="row">
                 <span className="main"><span className="t">解除連結？試算表內容會保留。</span></span>
                 <button type="button" className="mini" onClick={() => setConfirmUnlink(false)}>取消</button>
-                <button type="button" className="mini" style={{ color: 'var(--error)' }} onClick={async () => { await unlinkSheets(); setConfirmUnlink(false); toast('已解除連結。'); }}>解除</button>
+                <button type="button" className="mini" style={{ color: 'var(--error)' }} onClick={async () => { await sheetsLink.unlink(); setConfirmUnlink(false); toast('已解除連結。'); }}>解除</button>
               </div>
             ) : (
               <button type="button" className="row" onClick={() => setConfirmUnlink(true)}>

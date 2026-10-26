@@ -1,6 +1,7 @@
 import type { CzechMateDB } from '../db/schema';
 import { isHttpUrl } from './csvImport';
 import { isScriptUrl } from './sheetsClient';
+import { isLinkCredential, isLinkRecord, LINK_CREDENTIAL_KEYS, LINK_STATE_KEYS } from '../domain/sheetsLinkKeys';
 
 // Full backup and restore (requirements spec 6.2). Handbook sections are left out: they can be re-synced.
 
@@ -10,8 +11,9 @@ export const BACKUP_SCHEMA_VERSION = 1;
 const TABLES = ['resources', 'expenses', 'exchanges', 'trips', 'paymentMethods', 'categories', 'handbookSources', 'settings', 'outbox'] as const;
 type TableName = (typeof TABLES)[number];
 
-// S-01: Google Sheets credentials are excluded from backups by default unless explicitly opted in.
-const SECRET_SETTING_KEYS = new Set(['gsUrl', 'gsSecret']);
+// The Google Sheets link belongs to one phone and never travels in a backup. Only its address and key
+// may, when the user opts in (S-01), so a new phone can link to the same sheet again.
+const settingKey = (r: unknown) => (r as { key?: string })?.key ?? '';
 const SAFE_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 interface BackupImage { id: string; mime: string; width: number; height: number; createdAt: string; base64: string }
@@ -56,9 +58,10 @@ export async function createBackup(db: CzechMateDB, opts: { includeSecrets?: boo
     for (const t of TABLES) data[t] = await db.table(t).toArray();
     return { data, images: await db.images.toArray() };
   });
-  if (!opts.includeSecrets) {
-    data.settings = (data.settings ?? []).filter(r => !SECRET_SETTING_KEYS.has((r as { key?: string })?.key ?? ''));
-  }
+  data.settings = (data.settings ?? []).filter(r => {
+    const key = settingKey(r);
+    return !isLinkRecord(key) && (!!opts.includeSecrets || !isLinkCredential(key));
+  });
   data.images = [];
   for (const im of images) {
     data.images.push({ id: im.id, mime: im.blob.type || 'image/jpeg', width: im.width, height: im.height, createdAt: im.createdAt, base64: await blobToBase64(im.blob) });
@@ -98,9 +101,6 @@ export function parseBackup(text: string): BackupFile {
     if (row?.key === 'gsUrl' && row.value && (typeof row.value !== 'string' || !isScriptUrl(row.value))) {
       throw new RestoreError('備份檔內的試算表腳本網址格式有誤。');
     }
-    if (row?.key === 'gsSheetUrl' && row.value && (typeof row.value !== 'string' || !isHttpUrl(row.value))) {
-      throw new RestoreError('備份檔內的試算表網址格式有誤。');
-    }
   }
   return b as BackupFile;
 }
@@ -111,20 +111,23 @@ export async function restoreBackup(db: CzechMateDB, backup: BackupFile): Promis
     const mime = SAFE_IMAGE_MIMES.has(im.mime) ? im.mime : 'image/jpeg';
     return { id: im.id, width: im.width, height: im.height, createdAt: im.createdAt, blob: base64ToBlob(im.base64, mime) };
   });
+  // Backups from earlier versions may carry the whole link; only a complete address and key are taken from them.
+  const incoming = (backup.data.settings ?? []).filter(r => !isLinkRecord(settingKey(r)));
+  const credentials = incoming.filter(r => isLinkCredential(settingKey(r)) && (r as { value?: unknown }).value);
+  const bringsCredentials = credentials.length === LINK_CREDENTIAL_KEYS.length;
+  const settings = incoming.filter(r => !isLinkCredential(settingKey(r)) || (bringsCredentials && credentials.includes(r)));
   await db.transaction('rw', [...TABLES.map(t => db.table(t)), db.images, db.handbookSections], async () => {
-    const keptSecrets = (await db.settings.bulkGet([...SECRET_SETTING_KEYS])).filter((x): x is { key: string; value: unknown } => !!x);
+    const link = (await db.settings.bulkGet([...LINK_STATE_KEYS])).filter((x): x is { key: string; value: unknown } => !!x);
     for (const t of TABLES) await db.table(t).clear();
     await db.images.clear();
     await db.handbookSections.clear();
     for (const t of TABLES) {
-      const rows = backup.data[t] ?? [];
+      const rows = t === 'settings' ? settings : backup.data[t] ?? [];
       if (rows.length) await db.table(t).bulkAdd(rows);
     }
-    // Preserve local Google Sheets credentials when restoring a backup that excluded them (S-01).
-    const incomingKeys = new Set(((backup.data.settings ?? []) as { key?: string }[]).map(s => s.key));
-    for (const s of keptSecrets) {
-      if (!incomingKeys.has(s.key)) await db.settings.put(s);
-    }
+    // A backup with an address and key starts a fresh link (the user connects again); otherwise this phone keeps
+    // its link, but no longer owns the sheet's ledger: the next sync checks for records this backup lacks.
+    if (!bringsCredentials) await db.settings.bulkPut(link.filter(s => s.key !== 'gsLedgerOwner'));
     if (images.length) await db.images.bulkAdd(images);
   });
 }

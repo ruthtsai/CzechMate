@@ -45,11 +45,9 @@ export const buildAppsScript = (secret: string, imageFolder = DEFAULT_IMAGE_FOLD
 
 export const isScriptUrl = (url: string) => /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(url.trim());
 
-type Fetch = typeof fetch;
-
-export async function callScript<T extends object>(cfg: SheetsConfig, action: string, payload: object = {}, f?: Fetch): Promise<T> {
+export async function callScript<T extends object>(cfg: SheetsConfig, action: string, payload: object = {}): Promise<T> {
   if (!isScriptUrl(cfg.url) || !cfg.secret) throw new SheetsError('config', '尚未設定 Google 試算表連結。');
-  const fetchImpl = f ?? cfg.fetch ?? fetch;
+  const fetchImpl = cfg.fetch ?? fetch;
   let res: Response;
   try {
     // text/plain keeps this a "simple" request, so the browser sends no CORS preflight that Apps Script cannot answer.
@@ -75,7 +73,7 @@ export async function callScript<T extends object>(cfg: SheetsConfig, action: st
 }
 
 export interface PingResult { spreadsheetUrl: string; name: string; resourcesGid: number; imageFolder?: string; features?: string[] }
-export const ping = (cfg: SheetsConfig, f?: Fetch) => callScript<PingResult>(cfg, 'ping', {}, f);
+export const ping = (cfg: SheetsConfig) => callScript<PingResult>(cfg, 'ping');
 
 /** Full ledger records kept in the sheet's hidden _記帳原始資料 tab, so a phone can restore from it. */
 export interface RawLedger {
@@ -85,25 +83,25 @@ export interface RawLedger {
 export type RawCounts = Record<keyof RawLedger, number>;
 
 /** `allowEmpty` tells the script this phone emptied its ledger on purpose. */
-export const pushLedger = (cfg: SheetsConfig, sheets: SheetData[], raw?: RawLedger, allowEmpty = false, f?: Fetch) =>
-  callScript<{ syncedAt: string; sheets: number; rawSaved?: boolean }>(cfg, 'sync', { sheets, raw, allowEmpty }, f);
+export const pushLedger = (cfg: SheetsConfig, sheets: SheetData[], raw?: RawLedger, allowEmpty = false) =>
+  callScript<{ syncedAt: string; sheets: number; rawSaved?: boolean }>(cfg, 'sync', { sheets, raw, allowEmpty });
 
-export const getLedger = (cfg: SheetsConfig, f?: Fetch) =>
-  callScript<{ tables: RawLedger | null; syncedAt: string; counts: RawCounts }>(cfg, 'getLedger', {}, f);
+export const getLedger = (cfg: SheetsConfig) =>
+  callScript<{ tables: RawLedger | null; syncedAt: string; counts: RawCounts }>(cfg, 'getLedger');
 
 export interface SheetRow { row: number; values: Record<string, string> }
-export const getResources = (cfg: SheetsConfig, f?: Fetch) =>
-  callScript<{ rows: SheetRow[]; spreadsheetUrl: string; resourcesGid: number }>(cfg, 'getResources', {}, f);
+export const getResources = (cfg: SheetsConfig) =>
+  callScript<{ rows: SheetRow[]; spreadsheetUrl: string; resourcesGid: number }>(cfg, 'getResources');
 
-export const appendResource = (cfg: SheetsConfig, resource: Record<string, string>, f?: Fetch) =>
-  callScript<{ id: string; row: number; existed?: boolean }>(cfg, 'appendResource', { resource }, f);
+export const appendResource = (cfg: SheetsConfig, resource: Record<string, string>) =>
+  callScript<{ id: string; row: number; existed?: boolean }>(cfg, 'appendResource', { resource });
 
-export const uploadImage = (cfg: SheetsConfig, name: string, mime: string, base64: string, f?: Fetch) =>
-  callScript<{ name: string; id: string; modified: string }>(cfg, 'uploadImage', { name, mime, base64 }, f);
+export const uploadImage = (cfg: SheetsConfig, name: string, mime: string, base64: string) =>
+  callScript<{ name: string; id: string; modified: string }>(cfg, 'uploadImage', { name, mime, base64 });
 
 export interface RemoteImage { name: string; id?: string; modified?: string; mime?: string; base64?: string; missing?: boolean; unchanged?: boolean }
-export const getImages = (cfg: SheetsConfig, names: string[], known: Record<string, { id: string; modified: string }>, f?: Fetch) =>
-  callScript<{ images: RemoteImage[] }>(cfg, 'getImages', { names, known }, f);
+export const getImages = (cfg: SheetsConfig, names: string[], known: Record<string, { id: string; modified: string }>) =>
+  callScript<{ images: RemoteImage[] }>(cfg, 'getImages', { names, known });
 
 /** Link that opens the 資源 sheet at a row. */
 export const sheetRowLink = (spreadsheetUrl: string, gid: number, row: number) =>

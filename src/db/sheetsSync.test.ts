@@ -2,9 +2,9 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { linkedSheet } from '../io/scriptRunner.testkit';
 import type { SheetsConfig } from '../io/sheetsClient';
-import { db, getSetting, setSetting } from './index';
+import { db } from './index';
 import { saveResource, type ResourceInput } from './resources';
-import { processOutbox, pullResources, queueForSheet, SYNC_LOG_MAX, unlinkSheets, withLogEntry, type SyncLogEntry } from './sheetsSync';
+import { processOutbox, pullResources, queueForSheet, SYNC_LOG_MAX, withLogEntry, type SyncLogEntry } from './sheetsSync';
 
 // Tests run without a canvas, so stored images are kept as they arrive.
 vi.mock('../io/images', () => ({ compressImage: async (blob: Blob) => ({ blob, width: 1, height: 1 }) }));
@@ -126,34 +126,6 @@ describe('pulling resources from the sheet', () => {
     await pullResources(cfg);
     expect(await db.resources.get('r1')).toMatchObject({ imageIds: [] });
     expect(await db.images.count()).toBe(0);
-  });
-});
-
-describe('unlinking the sheet', () => {
-  it('keeps every resource, editable in the app again, and drops the queue', async () => {
-    env.post({ action: 'appendResource', resource: { ID: 'r1', 標題: '學生證', 類型: '網站', 階段: '抵達後' } });
-    await pullResources(cfg);
-    await addForSheet('還沒送出');
-
-    await unlinkSheets();
-    expect((await db.resources.toArray()).map(r => r.source)).toEqual(['app', 'app']);
-    expect(await db.outbox.count()).toBe(0);
-    expect(env.sheet('資源').cells).toHaveLength(2); // the sheet itself is untouched
-  });
-
-  it('forgets the link but keeps sync preferences', async () => {
-    for (const k of ['gsUrl', 'gsSecret', 'gsSheetName', 'gsLedgerOwner', 'gsRestoreOffer']) await setSetting(k, 'x');
-    await setSetting('gsAutoSync', false);
-    await setSetting('gsImageFolder', '交換計畫');
-    await setSetting('gsScriptImageFolder', '交換計畫');
-
-    await unlinkSheets();
-    expect(await getSetting('gsUrl', null)).toBeNull();
-    expect(await getSetting('gsLedgerOwner', null)).toBeNull();
-    expect(await getSetting('gsAutoSync', true)).toBe(false);
-    expect(await getSetting('gsImageFolder', null)).toBe('交換計畫');
-    // Known gap, kept as is for now: the folder reported by the old script survives unlinking but should not.
-    expect(await getSetting('gsScriptImageFolder', null)).toBe('交換計畫');
   });
 });
 

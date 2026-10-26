@@ -279,12 +279,3 @@ export async function migrateAppResources(cfg: SheetsConfig): Promise<number> {
   await queueForSheet(ids);
   return processOutbox(cfg);
 }
-
-/** Keeps every resource, now editable in the app again. */
-export async function unlinkSheets() {
-  await db.transaction('rw', db.resources, db.outbox, async () => {
-    await db.resources.filter(r => r.source === 'sheet' || r.source === 'pending').modify({ source: 'app' });
-    await db.outbox.clear();
-  });
-  await Promise.all(['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsSyncLog', 'gsScriptFeatures', 'gsLedgerOwner', 'gsRestoreOffer'].map(k => db.settings.delete(k)));
-}
