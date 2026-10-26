@@ -4,6 +4,7 @@ import { createBackup, restoreBackup } from '../io/backup';
 import { linkedSheet } from '../io/scriptRunner.testkit';
 import { db, getSetting, setSetting } from './index';
 import { saveExpense } from './ledger';
+import { deleteKeyDate, getKeyDates, saveKeyDate } from './keyDates';
 import { createSheetsLink } from './sheetsLink';
 import { syncLedgerNow } from './sheetsSync';
 
@@ -100,6 +101,64 @@ describe('answering the restore offer', () => {
     await link.overwriteSheet();
     expect(sheetItems()).toEqual(['咖啡']);
     expect(await getSetting('gsRestoreOffer', null)).toBeNull();
+  });
+});
+
+describe('knowing when the ledger needs sending', () => {
+  beforeEach(async () => {
+    await addExpense('午餐');
+    await link.connect(url);
+  });
+
+  it('a budget change needs sending, and sending settles it', async () => {
+    expect(await link.ledgerNeedsSending()).toBe(false);
+    await setSetting('budgetMonthly', 15000);
+    expect(await link.ledgerNeedsSending()).toBe(true);
+    await link.syncLedger();
+    expect(await link.ledgerNeedsSending()).toBe(false);
+  });
+
+  it('adding, editing and removing a key date each need sending', async () => {
+    const sent = async () => {
+      expect(await link.ledgerNeedsSending()).toBe(true);
+      await link.syncLedger();
+      expect(await link.ledgerNeedsSending()).toBe(false);
+    };
+    await saveKeyDate({ title: '出發', date: '2027-01-20' });
+    await sent();
+    const [d] = await getKeyDates();
+    await saveKeyDate({ title: '出發（改期）', date: '2027-01-22' }, d.id);
+    await sent();
+    await deleteKeyDate(d.id);
+    await sent();
+  });
+
+  it('still needs sending when the sheet did not keep the full ledger', async () => {
+    await addExpense('晚餐');
+    // An older script ignores the full ledger and keeps only the summary sheets.
+    const older = createSheetsLink({
+      remote: ((u: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        delete body.raw;
+        return env.fetch(u, { ...init, body: JSON.stringify(body) });
+      }) as typeof fetch
+    });
+    await older.syncLedger();
+    expect(await link.ledgerNeedsSending()).toBe(true);
+  });
+
+  it('a ledger just restored from the sheet needs no sending', async () => {
+    await newPhone();
+    await link.connect(url);
+    await link.restoreFromSheet();
+    expect(await link.ledgerNeedsSending()).toBe(false);
+  });
+
+  it('a phone updated from an earlier version sends once', async () => {
+    await db.settings.delete('gsPushedFingerprint');
+    expect(await link.ledgerNeedsSending()).toBe(true);
+    await link.syncLedger();
+    expect(await link.ledgerNeedsSending()).toBe(false);
   });
 });
 

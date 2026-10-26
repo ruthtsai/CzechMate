@@ -8,7 +8,8 @@ export const LINK_STATE_KEYS = [
   ...LINK_CREDENTIAL_KEYS,
   'gsSheetUrl', 'gsSheetName', 'gsResourcesGid', 'gsScriptImageFolder', 'gsScriptFeatures',
   'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsSyncLog',
-  'gsLedgerOwner', 'gsRestoreOffer', 'gsDirty'
+  'gsLedgerOwner', 'gsRestoreOffer', 'gsPushedFingerprint',
+  'gsDirty' // no longer written; listed so unlinking clears it from older versions
 ] as const;
 
 /** Choices the user makes about syncing: kept on unlinking, carried by backups. */

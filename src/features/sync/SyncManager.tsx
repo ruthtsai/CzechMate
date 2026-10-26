@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { db, getSetting, setSetting } from '../../db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, getSetting } from '../../db';
 import { refreshNotes } from '../../db/handbook';
+import { sheetsLink } from '../../db/sheetsLink';
 import { getSheetsConfig, processOutbox, pullResources, syncLedgerNow } from '../../db/sheetsSync';
-import { useLedger } from '../ledger/LedgerData';
 
 // Runs Google Sheets sync in the background (requirements GS-04, RS-01, RS-03).
 
@@ -15,7 +16,8 @@ const EVENT = 'czechmate-sync';
 export const requestSheetsSync = () => window.dispatchEvent(new Event(EVENT));
 
 export function SyncManager() {
-  const L = useLedger();
+  // Changes to any part of the ledger, budget and key dates included.
+  const ledger = useLiveQuery(sheetsLink.ledgerSnapshot, []);
   const timer = useRef<number>();
   const busy = useRef(false);
   const lastFailure = useRef(0);
@@ -35,7 +37,7 @@ export function SyncManager() {
       const waiting = await getSetting<unknown>('gsRestoreOffer', null);
       // A phone that has never saved its full ledger to the sheet does so once, as the first backup.
       const firstBackup = !(await getSetting<boolean>('gsLedgerOwner', false));
-      if (auto && !waiting && (firstBackup || (await getSetting<boolean>('gsDirty', false)))) await syncLedgerNow(cfg);
+      if (auto && !waiting && (firstBackup || (await sheetsLink.ledgerNeedsSending()))) await syncLedgerNow(cfg);
       if (job === 'all' && (force || Date.now() - lastPull.current > PULL_EVERY)) {
         await pullResources(cfg);
         lastPull.current = Date.now();
@@ -48,9 +50,9 @@ export function SyncManager() {
     }
   }
 
-  // Any ledger change marks the sheet as stale and syncs 30 s after the last change.
+  // Any ledger change syncs 30 s after the last change; the ledger fingerprint decides whether there is anything to send.
   useEffect(() => {
-    if (!L.ready) return;
+    if (!ledger) return;
     if (!seenLedger.current) {
       seenLedger.current = true;
       return;
@@ -58,12 +60,11 @@ export function SyncManager() {
     let cancelled = false;
     getSheetsConfig().then(cfg => {
       if (!cfg || cancelled) return;
-      setSetting('gsDirty', true);
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => run('ledger', true), LEDGER_DELAY);
     });
     return () => { cancelled = true; };
-  }, [L.ready, L.expenses, L.exchanges, L.trips, L.payments, L.categories]);
+  }, [ledger]);
 
   useEffect(() => {
     const onVisible = () => document.visibilityState === 'visible' && run('all');

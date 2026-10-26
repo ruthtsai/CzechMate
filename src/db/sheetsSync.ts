@@ -9,6 +9,7 @@ import {
   appendResource, getImages, getLedger, getResources, pushLedger, SheetsError, uploadImage, type RawCounts, type SheetsConfig
 } from '../io/sheetsClient';
 import { LEDGER_SETTING_KEYS, validateLedgerTables, type LedgerTables } from '../domain/ledgerRestore';
+import { ledgerFingerprint } from '../domain/ledgerFingerprint';
 
 // Google Sheets sync jobs (requirements spec 6.6, 6.7). Each job reads its own data from the database,
 // so it can run from a timer or an event without the UI.
@@ -42,10 +43,14 @@ export async function logSync(job: SyncJob, ok: boolean, msg: string) {
  */
 export interface RestoreOffer { counts: RawCounts; syncedAt: string }
 
+/** Remembers the ledger the sheet now holds in full; later changes make the ledger need sending again. */
+const sentFingerprint = (t: LedgerTables) => ({ key: 'gsPushedFingerprint', value: ledgerFingerprint(t) });
+
 /** True once this phone has saved its ledger to the sheet or restored from it; its pushes are trusted. */
 const isLedgerOwner = () => getSetting<boolean>('gsLedgerOwner', false);
 
-async function rawLedger(): Promise<LedgerTables> {
+/** The whole ledger as the sheet keeps it: every record plus the ledger settings. Reads only the database, so it works in live queries. */
+export async function readLedger(): Promise<LedgerTables> {
   const [expenses, exchanges, trips, paymentMethods, categories, settings] = await Promise.all([
     db.expenses.toArray(), db.exchanges.toArray(), db.trips.toArray(), db.paymentMethods.toArray(), db.categories.toArray(),
     db.settings.bulkGet([...LEDGER_SETTING_KEYS])
@@ -64,7 +69,7 @@ async function remoteLedger(cfg: SheetsConfig) {
 }
 
 export async function syncLedgerNow(cfg: SheetsConfig): Promise<void> {
-  const raw = await rawLedger();
+  const raw = await readLedger();
   const { expenses, exchanges, trips } = raw;
   const payments = [...raw.paymentMethods].sort((a, b) => a.order - b.order);
   const categories = [...raw.categories].sort((a, b) => a.order - b.order);
@@ -86,8 +91,9 @@ export async function syncLedgerNow(cfg: SheetsConfig): Promise<void> {
       }
     }
     const r = await pushLedger(cfg, buildSheets({ expenses, exchanges, payments, categories, trips, money }), raw, owner);
-    const done = [setSetting('gsDirty', false), setSetting('gsLastSyncAt', r.syncedAt), setSetting('gsLastError', '')];
-    if (r.rawSaved) done.push(setSetting('gsLedgerOwner', true), db.settings.delete('gsRestoreOffer'));
+    const done: Promise<unknown>[] = [setSetting('gsLastSyncAt', r.syncedAt), setSetting('gsLastError', '')];
+    // Only a ledger the sheet kept in full counts as sent.
+    if (r.rawSaved) done.push(db.settings.bulkPut([{ key: 'gsLedgerOwner', value: true }, sentFingerprint(raw)]), db.settings.delete('gsRestoreOffer'));
     await Promise.all(done);
     await logSync('記帳', true, `${expenses.length} 筆支出、${exchanges.length} 筆換匯`);
   } catch (e) {
@@ -118,7 +124,8 @@ export async function restoreLedgerFromSheet(cfg: SheetsConfig): Promise<RawCoun
     await db.exchanges.bulkAdd(t.exchanges);
     await db.settings.bulkDelete([...LEDGER_SETTING_KEYS]);
     await db.settings.bulkPut(t.settings);
-    await db.settings.bulkPut([{ key: 'gsLedgerOwner', value: true }, { key: 'gsDirty', value: false }]);
+    // The phone now holds what the sheet holds.
+    await db.settings.bulkPut([{ key: 'gsLedgerOwner', value: true }, sentFingerprint(t)]);
     await db.settings.delete('gsRestoreOffer');
   });
   await logSync('記帳', true, `從試算表還原 ${t.expenses.length} 筆支出、${t.exchanges.length} 筆換匯`);
@@ -127,7 +134,7 @@ export async function restoreLedgerFromSheet(cfg: SheetsConfig): Promise<RawCoun
 
 /** The user chose to keep this phone's ledger: it replaces the copy in the sheet. */
 export async function overwriteSheetLedger(cfg: SheetsConfig): Promise<void> {
-  await Promise.all([setSetting('gsLedgerOwner', true), setSetting('gsDirty', true), db.settings.delete('gsRestoreOffer')]);
+  await Promise.all([setSetting('gsLedgerOwner', true), db.settings.delete('gsRestoreOffer')]);
   await syncLedgerNow(cfg);
 }
 

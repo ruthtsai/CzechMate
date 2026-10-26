@@ -31,16 +31,17 @@ const stamp = (iso?: string) => {
 export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
   const toast = useToast();
   const s = useLiveQuery(async () => {
-    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsDirty', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog', 'gsScriptFeatures', 'gsRestoreOffer'] as const;
+    const keys = ['gsUrl', 'gsSecret', 'gsSheetUrl', 'gsSheetName', 'gsAutoSync', 'gsLastSyncAt', 'gsLastPullAt', 'gsLastError', 'gsPullErrors', 'gsImageFolder', 'gsScriptImageFolder', 'gsSyncLog', 'gsScriptFeatures', 'gsRestoreOffer'] as const;
     const rows = await db.settings.bulkGet([...keys]);
     return Object.fromEntries(keys.map((k, i) => [k, rows[i]?.value])) as {
       gsUrl?: string; gsSecret?: string; gsSheetUrl?: string; gsSheetName?: string; gsAutoSync?: boolean; gsLastSyncAt?: string;
       gsImageFolder?: string; gsScriptImageFolder?: string;
-      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsDirty?: boolean; gsSyncLog?: SyncLogEntry[]; gsScriptFeatures?: string[]; gsRestoreOffer?: RestoreOffer;
+      gsLastPullAt?: string; gsLastError?: string; gsPullErrors?: { line: number; message: string }[]; gsSyncLog?: SyncLogEntry[]; gsScriptFeatures?: string[]; gsRestoreOffer?: RestoreOffer;
     };
   }, []);
   const appOnly = useLiveQuery(() => db.resources.filter(r => (r.source ?? 'app') === 'app').count(), [], 0);
   const queued = useLiveQuery(() => db.outbox.count(), [], 0);
+  const unsent = useLiveQuery(() => sheetsLink.ledgerNeedsSending(), [], false);
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [showScript, setShowScript] = useState(false);
@@ -140,7 +141,7 @@ export function GoogleSheetsSettings({ onBack }: { onBack: () => void }) {
       {linked ? (
         <div className="card small" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span>已連線到「{s.gsSheetName}」</span>
-          <span className="muted">記帳上次同步：{stamp(s.gsLastSyncAt)}{s.gsDirty ? '（有尚未同步的變更）' : ''}</span>
+          <span className="muted">記帳上次同步：{stamp(s.gsLastSyncAt)}{unsent ? '（有尚未同步的變更）' : ''}</span>
           <span className="muted">資源上次更新：{stamp(s.gsLastPullAt)}{queued ? ` · ${queued} 筆新增等待送出` : ''}</span>
           {s.gsLastError && <span style={{ color: 'var(--warning)' }}>{s.gsLastError}</span>}
           <a href={s.gsSheetUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>開啟試算表</a>

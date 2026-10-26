@@ -1,8 +1,9 @@
 import { db, getSetting, setSetting } from './index';
 import { refreshNotes } from './handbook';
 import {
-  getSheetsConfig, migrateAppResources, overwriteSheetLedger, previewRestore, pullResources, restoreLedgerFromSheet, syncLedgerNow, type RestoreOffer
+  getSheetsConfig, migrateAppResources, overwriteSheetLedger, previewRestore, pullResources, readLedger, restoreLedgerFromSheet, syncLedgerNow, type RestoreOffer
 } from './sheetsSync';
+import { ledgerFingerprint } from '../domain/ledgerFingerprint';
 import { isLinkRecord, LINK_STATE_KEYS } from '../domain/sheetsLinkKeys';
 import { generateSecret, isScriptUrl, ping, SheetsError, type SheetsConfig } from '../io/sheetsClient';
 
@@ -50,7 +51,7 @@ export function createSheetsLink({ remote }: { remote?: typeof fetch } = {}) {
       await db.settings.delete('gsRestoreOffer');
       await Promise.all([
         setSetting('gsUrl', u), setSetting('gsSheetUrl', r.spreadsheetUrl), setSetting('gsSheetName', r.name), setSetting('gsResourcesGid', r.resourcesGid),
-        setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsScriptFeatures', r.features ?? []), setSetting('gsLastError', ''), setSetting('gsDirty', true)
+        setSetting('gsScriptImageFolder', r.imageFolder ?? ''), setSetting('gsScriptFeatures', r.features ?? []), setSetting('gsLastError', '')
       ]);
       onLinked?.(r.name);
       try {
@@ -63,6 +64,14 @@ export function createSheetsLink({ remote }: { remote?: typeof fetch } = {}) {
       const restoreOffer = await getSetting<RestoreOffer | null>('gsRestoreOffer', null);
       return restoreOffer ? { name: r.name, restoreOffer } : { name: r.name };
     },
+
+    /** Whether the ledger changed since the sheet last kept it in full. Reads only the database, so it works in live queries. */
+    async ledgerNeedsSending() {
+      const sent = await getSetting<string>('gsPushedFingerprint', '');
+      return sent !== ledgerFingerprint(await readLedger());
+    },
+    /** The whole ledger, for a live query that reacts to any change in it (records, budget or key dates). */
+    ledgerSnapshot: readLedger,
 
     /** Sends the ledger to the sheet now. */
     syncLedger: async () => syncLedgerNow(await config()),
