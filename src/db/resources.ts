@@ -2,6 +2,7 @@ import { db } from './index';
 import type { Resource } from './schema';
 import type { Compressed } from '../io/images';
 import type { ImportDraft } from '../io/csvImport';
+import { addImages, releaseImages } from './images';
 
 // Writes for the resource library (requirements spec 4.2–4.3).
 
@@ -23,12 +24,10 @@ export async function saveResource(
   const t = now();
   return db.transaction('rw', db.resources, db.images, async () => {
     const old = opts.id ? await db.resources.get(opts.id) : undefined;
-    const added = (opts.newImages ?? []).map(im => ({ id: uid(), blob: im.blob, width: im.width, height: im.height, createdAt: t }));
-    if (added.length) await db.images.bulkAdd(added);
+    const added = await addImages(opts.newImages ?? [], t);
     const keep = opts.keepImageIds ?? old?.imageIds ?? [];
     const removed = (old?.imageIds ?? []).filter(i => !keep.includes(i));
-    if (removed.length) await db.images.bulkDelete(removed);
-    const imageIds = [...keep, ...added.map(a => a.id)];
+    const imageIds = [...keep, ...added];
     const pinned = input.pinned && !!input.url;
     const pinOrder = pinned ? (old?.pinned ? old.pinOrder : await nextPinOrder()) : undefined;
     const record: Resource = {
@@ -45,6 +44,7 @@ export async function saveResource(
       updatedAt: t
     };
     await db.resources.put(record);
+    await releaseImages(removed);
     return record.id;
   });
 }
@@ -52,8 +52,8 @@ export async function saveResource(
 export async function deleteResource(id: string) {
   await db.transaction('rw', db.resources, db.images, async () => {
     const r = await db.resources.get(id);
-    if (r?.imageIds.length) await db.images.bulkDelete(r.imageIds);
     await db.resources.delete(id);
+    await releaseImages(r?.imageIds ?? []);
   });
 }
 
@@ -106,21 +106,14 @@ export async function importDrafts(drafts: ImportDraft[], images: Map<string, Co
   const t = now();
   return db.transaction('rw', db.resources, db.images, async () => {
     let order = await nextPinOrder();
-    const imageRows: { id: string; blob: Blob; width: number; height: number; createdAt: string }[] = [];
-    const resources: Resource[] = drafts.map(d => {
-      const ids = d.imageNames.flatMap(name => {
-        const im = images.get(name);
-        if (!im) return [];
-        const id = uid();
-        imageRows.push({ id, blob: im.blob, width: im.width, height: im.height, createdAt: t });
-        return [id];
-      });
-      return {
+    const resources: Resource[] = [];
+    for (const d of drafts) {
+      const ids = await addImages(d.imageNames.flatMap(name => images.get(name) ?? []), t);
+      resources.push({
         id: uid(), title: d.title, type: d.type, stage: d.stage, content: d.content, tags: d.tags, url: d.url,
         imageIds: ids, pinned: d.pinned, pinOrder: d.pinned ? order++ : undefined, createdAt: t, updatedAt: t
-      };
-    });
-    if (imageRows.length) await db.images.bulkAdd(imageRows);
+      });
+    }
     await db.resources.bulkAdd(resources);
     return resources.map(r => r.id);
   });

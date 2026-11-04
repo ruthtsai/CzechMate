@@ -1,4 +1,5 @@
 import { db, getSetting, setSetting } from './index';
+import { collectOrphanImages } from './images';
 import type { Resource, StoredImage } from './schema';
 import { computeMoney } from '../domain/money';
 import { planPull, toSheetValues } from '../domain/sheetResources';
@@ -207,18 +208,13 @@ async function syncImages(cfg: SheetsConfig, checkAll: boolean): Promise<number>
       fetched++;
     }
   }
-  // Point each sheet resource at its images and drop Drive images nobody uses any more.
+  // Point each sheet resource at its images, then drop images nobody uses any more.
   await db.transaction('rw', db.resources, db.images, async () => {
-    const used = new Set<string>();
     for (const r of sheetRes) {
       const ids = (r.imageNames ?? []).flatMap(n => (byName.get(n.toLowerCase()) ? [byName.get(n.toLowerCase())!.id] : []));
-      ids.forEach(id => used.add(id));
       if (JSON.stringify(ids) !== JSON.stringify(r.imageIds)) await db.resources.update(r.id, { imageIds: ids });
     }
-    const others = await db.resources.filter(r => r.source !== 'sheet').toArray();
-    others.forEach(r => r.imageIds.forEach(id => used.add(id)));
-    const orphans = (await db.images.filter(i => !!i.driveId && !used.has(i.id)).primaryKeys()) as string[];
-    if (orphans.length) await db.images.bulkDelete(orphans);
+    await collectOrphanImages();
   });
   return fetched;
 }
