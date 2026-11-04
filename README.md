@@ -13,6 +13,7 @@
 npm install
 npm run dev        # 開發伺服器 http://localhost:5173/CzechMate/
 npm test           # 單元測試
+npm run lint       # ESLint（React hooks 規則等，型別交給 tsc）
 npm run build      # 型別檢查與正式建置到 dist/
 npm run icons      # 重新產生 App 圖示（需要 Python 與 Pillow）
 npm run mockup     # 由 mockup-src/ 重建 public/mockup/

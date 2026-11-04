@@ -43,6 +43,7 @@ function PageView({ page, heading, onBack, onOpen }: { page: Page; heading?: str
       setLoading(true);
       fetchNote(page.url).catch(() => toast('無法下載這一篇，請確認網路後再試。', { ok: false })).finally(() => setLoading(false));
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- with `loading` here a failed download would retry in a loop
   }, [note, page.url]);
 
   // Jump to the section a search result pointed at.

@@ -4,7 +4,7 @@ import type { HandbookSection, Resource } from '../db/schema';
 
 /** Lowercase and full-width ASCII to half-width, keeping string length so offsets line up. */
 const fold = (s: string) =>
-  s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/　/g, ' ').toLowerCase();
+  s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\u3000/g, ' ').toLowerCase();
 
 export const normalize = (s: string) => fold(s).trim();
 

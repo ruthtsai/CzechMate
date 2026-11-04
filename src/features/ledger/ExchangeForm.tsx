@@ -41,11 +41,13 @@ export function ExchangeForm({ open, editId, onClose }: { open: boolean; editId?
         ? { ...x, outAmount: String(x.outAmount), inAmount: String(x.inAmount), estimated: !!x.estimated }
         : { date: today(), method: 'cash', outAmount: '', outCurrency: 'TWD', inAmount: '', inCurrency: 'CZK', estimated: true, place: '', note: '' }
     );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fill the form when it opens, not on every ledger update
   }, [open, editId, L.ready]);
 
   const kindOf = (id: string) => L.payment(id)?.kind;
   const cashBefore = useMemo(
     () => (d ? cashStateOn(d.date, L.expenses, L.exchanges, id => L.payment(id)?.kind, editId) : {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the date matters; recomputing on every keystroke is wasted work
     [d?.date, L, editId]
   );
 

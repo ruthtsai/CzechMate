@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CURRENCIES, MODES, MODE_SHORT, type Currency } from '../../domain/constants';
 import { shortDate, today, weekday } from '../../domain/dates';
 import { formatAmount, formatRate, formatTwd } from '../../domain/format';
@@ -41,8 +41,11 @@ export function LedgerPage() {
     return { pending, noRate };
   }, [L.money]);
 
-  const searchText = (e: Expense) => `${L.payment(e.paymentId)?.name ?? ''} ${e.tripId ? L.trips.find(t => t.id === e.tripId)?.name ?? '' : ''}`;
-  const list = useMemo(() => filterExpenses(f, L.expenses, L.money.expenses, L.category, undefined, searchText), [L, f]);
+  const searchText = useCallback(
+    (e: Expense) => `${L.payment(e.paymentId)?.name ?? ''} ${e.tripId ? L.trips.find(t => t.id === e.tripId)?.name ?? '' : ''}`,
+    [L]
+  );
+  const list = useMemo(() => filterExpenses(f, L.expenses, L.money.expenses, L.category, undefined, searchText), [L, f, searchText]);
 
   // A just-saved expense must be visible: if the current filters hide it, go back to the usual view.
   useEffect(() => {
