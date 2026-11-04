@@ -31,6 +31,7 @@ export function SyncManager() {
       return;
     }
     tick('ledgerChanged');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick only touches refs and the sheetsLink module
   }, [ledger]);
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function SyncManager() {
       alive.current = false;
       window.clearTimeout(timer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- listeners are set up once for the app's lifetime
   }, []);
 
   return null;

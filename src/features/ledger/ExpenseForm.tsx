@@ -70,9 +70,14 @@ export function ExpenseForm({ open, editId, copyFromId, onCopy, onClose }: {
     });
     return () => { cancelled = true; };
     // Only re-run when the sheet opens or the record changes, not on every ledger update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [open, editId, copyFromId, L.ready]);
 
-  const templates = useMemo(() => (open && !editId && !copyFromId ? recentTemplates(L.expenses) : []), [open, editId, copyFromId, L.ready]);
+  const templates = useMemo(
+    () => (open && !editId && !copyFromId ? recentTemplates(L.expenses) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the suggestions stay put while the form is open
+    [open, editId, copyFromId, L.ready]
+  );
 
   const kind = d ? L.payment(d.paymentId)?.kind : undefined;
 
@@ -82,7 +87,7 @@ export function ExpenseForm({ open, editId, copyFromId, onCopy, onClose }: {
     const amount = parseAmount(d.amount);
     const left = (st?.stock ?? 0) - (amount > 0 ? amount : 0);
     if (!st || st.avg === null) return { warn: `還沒有 ${d.currency} 的換匯紀錄，台幣金額會先標為「無匯率」，補記換匯後自動換算。` };
-    const twd = amount > 0 ? `≈ ${formatTwd(amount * st.avg)}　` : '';
+    const twd = amount > 0 ? `≈ ${formatTwd(amount * st.avg)}\u3000` : '';
     return {
       text: `${twd}成本 1 ${d.currency} = ${formatRate(st.avg, d.currency)} TWD · 付款後剩 ${formatAmount(left, d.currency)} ${d.currency}`,
       warn: left < 0 ? `${d.currency} 現金庫存不足，請補記換匯。` : undefined

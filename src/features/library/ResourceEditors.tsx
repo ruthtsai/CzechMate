@@ -37,6 +37,7 @@ function ResourceDetail({ id, onClose, onEdit }: { id: string | null; onClose: (
     if (noteKey && note === undefined && navigator.onLine) {
       db.noteCache.get(noteKey).then(c => { if (!c) loadNote(false); });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- download once per note, when it is first opened
   }, [noteKey]);
 
   async function loadNote(announce = true) {

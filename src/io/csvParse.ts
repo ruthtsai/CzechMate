@@ -6,7 +6,7 @@ import { CSV_COLUMNS, rowToDraft, normalizeUrl, type ImportDraft, type ImportPre
 // so papaparse loads with the import screen, not at launch.
 
 export function parseResourceCsv(text: string, existing: Pick<Resource, 'id' | 'title' | 'url'>[], imageFileNames: string[] = []): ImportPreview {
-  const result = Papa.parse<Record<string, string>>(text.replace(/^﻿/, ''), { header: true, skipEmptyLines: 'greedy', transformHeader: h => h.trim() });
+  const result = Papa.parse<Record<string, string>>(text.replace(/^\uFEFF/, ''), { header: true, skipEmptyLines: 'greedy', transformHeader: h => h.trim() });
   const fields = result.meta.fields ?? [];
   const errors: ImportPreview['errors'] = [];
   if (!fields.includes('標題')) {
