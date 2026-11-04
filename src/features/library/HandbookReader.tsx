@@ -2,11 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { db } from '../../db';
 import { fetchNote } from '../../db/handbook';
-import { renderMarkdown } from '../../domain/markdown';
 import { slashDate } from '../../domain/dates';
 import { canonicalNoteUrl } from '../../io/hackmd';
 import { IconBook } from '../../components/Icons';
 import { Sheet, useToast } from '../../components/ui';
+import { useRenderMarkdown } from './useRenderMarkdown';
 
 // Reads the synced survival handbook inside the app, offline (requirements HB-01).
 
@@ -32,7 +32,8 @@ function PageView({ page, heading, onBack, onOpen }: { page: Page; heading?: str
   const note = useLiveQuery(() => db.noteCache.get(page.url), [page.url]);
   const [loading, setLoading] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const html = useMemo(() => (note ? renderMarkdown(note.markdown, 'https://hackmd.io') : ''), [note]);
+  const render = useRenderMarkdown();
+  const html = useMemo(() => (note && render ? render(note.markdown, 'https://hackmd.io') : ''), [note, render]);
 
   // Pages synced before full pages were kept are fetched on demand.
   useEffect(() => {

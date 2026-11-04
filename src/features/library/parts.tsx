@@ -5,7 +5,8 @@ import type { Resource } from '../../db/schema';
 import { RESOURCE_TYPE_LABEL, STAGE_LABEL, type ResourceType } from '../../domain/constants';
 import { slashDate } from '../../domain/dates';
 import { highlight, snippet } from '../../domain/search';
-import { renderMarkdown, stripMarkdown } from '../../domain/markdown';
+import { stripMarkdown } from '../../domain/markdown';
+import { useRenderMarkdown } from './useRenderMarkdown';
 import { IconChat, IconFile, IconGlobe, IconImage, IconLink, IconNote, IconPin } from '../../components/Icons';
 
 export const TYPE_ICON: Record<ResourceType, (p: { width?: number }) => ReactNode> = {
@@ -67,9 +68,11 @@ export function ResourceCard({ r, terms = [], onClick }: { r: Resource; terms?: 
   );
 }
 
-/** Markdown content; raw HTML in the source is never rendered (domain/markdown.ts). */
+/** Markdown content, sanitised (domain/markdownRender.ts). Plain text shows while the renderer loads. */
 export function Markdown({ source }: { source: string }) {
-  return <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(source) }} />;
+  const render = useRenderMarkdown();
+  if (!render) return <div className="md" style={{ whiteSpace: 'pre-wrap' }}>{stripMarkdown(source)}</div>;
+  return <div className="md" dangerouslySetInnerHTML={{ __html: render(source) }} />;
 }
 
 export function ImageViewer({ id, onClose }: { id: string | null; onClose: () => void }) {

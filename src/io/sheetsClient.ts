@@ -1,4 +1,3 @@
-import scriptSource from './appsScript.gs?raw';
 import type { SheetData } from './exportRows';
 
 // Talks to the user's Apps Script web app (requirements spec 6.6 and 6.7).
@@ -35,13 +34,6 @@ export function normalizeFolderPath(path: string): string {
     .filter(Boolean)
     .join('/') || DEFAULT_IMAGE_FOLDER;
 }
-
-/** The script to paste into the spreadsheet, with this phone's secret and image folder filled in. */
-export const buildAppsScript = (secret: string, imageFolder = DEFAULT_IMAGE_FOLDER) =>
-  scriptSource
-    .replace('__CZECHMATE_SECRET__', () => secret.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))
-    // The path goes inside a single-quoted string in the script.
-    .replace('__CZECHMATE_IMAGE_FOLDER__', () => normalizeFolderPath(imageFolder).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 
 export const isScriptUrl = (url: string) => /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(url.trim());
 
