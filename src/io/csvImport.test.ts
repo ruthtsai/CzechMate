@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { parseResourceCsv } from './csvImport';
+import { parseResourceCsv } from './csvParse';
 
 const HEADER = '標題,類型,階段,網址,內容,標籤,圖片檔名,釘選';
 

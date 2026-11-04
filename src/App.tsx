@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { HashRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getSetting } from './db';
@@ -8,15 +8,17 @@ import { IconChart, IconHome, IconLibrary, IconWallet } from './components/Icons
 import { SettingsCtx, type SettingsScreen } from './components/PageHeader';
 import { ToastProvider, useToast } from './components/ui';
 import { HomePage } from './features/home/HomePage';
-import { LibraryPage } from './features/library/LibraryPage';
-import { LedgerPage } from './features/ledger/LedgerPage';
-import { StatsPage } from './features/stats/StatsPage';
-import { SettingsSheet } from './features/settings/SettingsSheet';
 import { EditorsProvider } from './features/ledger/Editors';
 import { LedgerDataProvider } from './features/ledger/LedgerData';
 import { ResourceEditorsProvider } from './features/library/ResourceEditors';
 import { SyncManager } from './features/sync/SyncManager';
 import { HandbookReaderProvider } from './features/library/HandbookReader';
+
+// The home page ships in the main bundle; other tabs and settings load on first visit (precached for offline use).
+const LibraryPage = lazy(() => import('./features/library/LibraryPage').then(m => ({ default: m.LibraryPage })));
+const LedgerPage = lazy(() => import('./features/ledger/LedgerPage').then(m => ({ default: m.LedgerPage })));
+const StatsPage = lazy(() => import('./features/stats/StatsPage').then(m => ({ default: m.StatsPage })));
+const SettingsSheet = lazy(() => import('./features/settings/SettingsSheet').then(m => ({ default: m.SettingsSheet })));
 
 const TABS = [
   { to: '/', label: '首頁', Icon: IconHome },
@@ -50,7 +52,12 @@ function UpdatePrompt() {
 
 export default function App() {
   const [settings, setSettings] = useState<SettingsScreen | null>(null);
-  const openSettings = useCallback((screen: SettingsScreen = 'main') => setSettings(screen), []);
+  // Mounted on first open and kept, so its state survives closing as before.
+  const [settingsUsed, setSettingsUsed] = useState(false);
+  const openSettings = useCallback((screen: SettingsScreen = 'main') => {
+    setSettingsUsed(true);
+    setSettings(screen);
+  }, []);
   const closeSettings = useCallback(() => setSettings(null), []);
 
   useEffect(() => {
@@ -67,6 +74,7 @@ export default function App() {
               <SettingsCtx.Provider value={openSettings}>
                 <HashRouter>
                   <div className="app">
+                    <Suspense fallback={<div className="page" />}>
                     <Routes>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/library" element={<LibraryPage />} />
@@ -74,10 +82,15 @@ export default function App() {
                       <Route path="/stats" element={<StatsPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
+                    </Suspense>
                     <TabBar />
                   </div>
                 </HashRouter>
-                <SettingsSheet open={settings !== null} initialScreen={settings ?? 'main'} onClose={closeSettings} />
+                {settingsUsed && (
+                  <Suspense fallback={null}>
+                    <SettingsSheet open={settings !== null} initialScreen={settings ?? 'main'} onClose={closeSettings} />
+                  </Suspense>
+                )}
                 <UpdatePrompt />
                 <SyncManager />
               </SettingsCtx.Provider>

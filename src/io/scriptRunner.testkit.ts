@@ -1,4 +1,5 @@
-import { buildAppsScript, type SheetsConfig } from './sheetsClient';
+import { buildAppsScript } from './appsScriptSource';
+import type { SheetsConfig } from './sheetsClient';
 
 // Runs the real appsScript.gs against a small in-memory stand-in for the Apps Script services,
 // so tests can talk to it either directly (`post`) or through the app's sheets client (`fetch`).

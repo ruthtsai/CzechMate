@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown, stripInline, stripMarkdown } from './markdown';
+import { stripInline, stripMarkdown } from './markdown';
+import { renderMarkdown } from './markdownRender';
 
 describe('renderMarkdown', () => {
   it('renders headings, lists, emphasis and line breaks', () => {

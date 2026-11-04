@@ -5,7 +5,8 @@ import { ShortcutGuide } from './ShortcutGuide';
 import { sheetsLink } from '../../db/sheetsLink';
 import { useLedgerUnsent, useSheetsLinkStatus } from '../sync/useSheetsLinkStatus';
 import { LedgerRestore } from './LedgerRestore';
-import { buildAppsScript, DEFAULT_IMAGE_FOLDER, isScriptUrl, normalizeFolderPath, SheetsError } from '../../io/sheetsClient';
+import { DEFAULT_IMAGE_FOLDER, isScriptUrl, normalizeFolderPath, SheetsError } from '../../io/sheetsClient';
+import { buildAppsScript } from '../../io/appsScriptSource';
 import { Field } from '../../components/form';
 import { useToast } from '../../components/ui';
 

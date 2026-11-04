@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildAppsScript, callScript, generateSecret, isScriptUrl, normalizeFolderPath, sheetRowLink, SheetsError } from './sheetsClient';
+import { buildAppsScript } from './appsScriptSource';
+import { callScript, generateSecret, isScriptUrl, normalizeFolderPath, sheetRowLink, SheetsError } from './sheetsClient';
 import { makeEnv } from './scriptRunner.testkit';
 
 describe('Apps Script', () => {
