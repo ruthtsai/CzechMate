@@ -1,4 +1,4 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { stripInline, stripMarkdown } from './markdown';
 import { renderMarkdown } from './markdownRender';
@@ -17,7 +17,8 @@ describe('renderMarkdown', () => {
       [
         '前言',
         '',
-        // <script> removal is checked in a real browser; happy-dom returns an empty result for it.
+        '<script>alert(1)</script>',
+        '',
         '<div class="card" style="color:red" onclick="x()">文字<img src="x.png" onerror="alert(1)"></div>',
         '',
         '<a href="javascript:alert(1)">連結</a>'
